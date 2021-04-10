@@ -33,7 +33,6 @@
 <script>
 import * as axios from "axios";
 import JSONFormatter from "json-formatter-js";
-import { getBaseUrl } from "@/helpers/urlBuilder";
 
 export default {
   name: "SupplementalProbeViewer",
@@ -50,7 +49,9 @@ export default {
   },
   computed: {
     baseUrl: function() {
-      return getBaseUrl();
+      return window.location.hostname == "localhost"
+        ? "http://" + window.location.hostname + ":3000"
+        : "";
     },
     hasMask: function() {
       const target = this.target;
@@ -120,9 +121,16 @@ export default {
     async JsonSupplementalData(supplementalData) {
       const { uri: filepath } = supplementalData;
       const start = filepath.indexOf("output/") + 7;
-      const path = `./output/${filepath.substring(start)}`;
 
-      const { href } = new URL(path, this.baseUrl);
+      const workingURL = new URL(window.location.href);
+      if (workingURL.hostname === "localhost") {
+        workingURL.port = "3000";
+      }
+
+      const { href } = new URL(
+        `./output/${filepath.substring(start)}`,
+        workingURL.origin
+      );
 
       const response = await axios.get(href);
       this.supplementalJSON = new JSONFormatter(response.data);

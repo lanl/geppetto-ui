@@ -1,59 +1,81 @@
 <template>
-  <div class="probe-container">
+  <div v-if="probe" class="probe-container">
     <div class="header">
-      <div class="manipulations">
-        <!-- Zoom -->
-        <div v-if="parsedProbe.isImage" class="buttons has-addons">
-          <button class="button is-small" @click="zoomOut" title="Zoom Out">
-            <font-awesome-icon icon="minus" />
-          </button>
-          <button
-            class="button is-small zoomDisplay"
-            title="Reset Zoom"
-            @click="resetTransform"
+      <div class="toolbar">
+        <div class="buttons has-addons">
+          <router-link
+            class="button"
+            title="Previous"
+            :disabled="!previousProbe"
+            :to="previousProbe"
+            replace
           >
-            {{ parseInt(zoomState) }}%
-          </button>
-          <button class="button is-small" @click="zoomIn" title="Zoom In">
-            <font-awesome-icon icon="plus" />
-          </button>
+            <span class="icon is-small">
+              <font-awesome-icon icon="chevron-left" />
+            </span>
+          </router-link>
+
+          <router-link
+            class="button"
+            title="Next"
+            :disabled="!nextProbe"
+            :to="nextProbe"
+            replace
+          >
+            <span class="icon is-small">
+              <font-awesome-icon icon="chevron-right" />
+            </span>
+          </router-link>
         </div>
 
-        <div class="control" v-if="imageSelected">
-          <button
-            class="button is-small"
-            title="View Fullscreen"
-            @click="fullScreen()"
-          >
-            <font-awesome-icon icon="expand-arrows-alt" />
+        <!-- Zoom -->
+        <div class="buttons has-addons" v-if="parsedProbe.isImage">
+          <button class="button" title="Zoom out" @click="zoomOut">
+            <span class="icon is-small">
+              <font-awesome-icon icon="minus" />
+            </span>
+          </button>
+
+          <button class="button" title="Reset zoom" @click="resetTransform">
+            {{ parseInt(zoomState) }}%
+          </button>
+
+          <button class="button" title="Zoom in" @click="zoomIn">
+            <span class="icon is-small">
+              <font-awesome-icon icon="plus" />
+            </span>
           </button>
         </div>
 
         <!--Rotate 90d CCW - CW only show if image seelcted-->
-        <div class="control has-icons-left" v-if="imageSelected">
+        <div class="buttons has-addons" v-if="parsedProbe.isImage">
           <button
-            class="button is-small"
+            class="button"
+            title="Rotate 90 degrees counterclockwise"
             @click="rotateLeft"
-            title="Rotate 90 degrees CCW"
           >
-            <font-awesome-icon icon="undo" />
+            <span class="icon is-small">
+              <font-awesome-icon icon="undo" />
+            </span>
           </button>
+
           <button
-            class="button is-small"
+            class="button"
+            title="Rotate 90 degrees clockwise"
             @click="rotateRight"
-            title="Rotate 90 degrees CW"
           >
-            <font-awesome-icon icon="redo" />
+            <span class="icon is-small">
+              <font-awesome-icon icon="redo" />
+            </span>
           </button>
         </div>
 
         <!-- Colorgrading Legend if mask selected-->
-        <div v-if="maskUrl !== '' || !imageSelected" class="has-addons ">
+        <div class="field" v-if="maskUrl !== '' || !imageSelected">
           <div class="control has-icons-left">
-            <div class="select is-small">
+            <div class="select">
               <select
-                name="colormaps"
-                id="colormapSelect"
+                title="Colormap"
                 v-model="colormap"
                 @change="changeColormap($event)"
               >
@@ -62,193 +84,221 @@
                   :key="mode.map"
                   :value="mode.map"
                 >
-                  {{ mode.name }} <span class="grad"></span>
+                  {{ mode.name }}
                 </option>
               </select>
             </div>
-            <div class="icon is-left grad" :style="gradientStyle"></div>
+            <div class="icon is-small is-left">
+              <div :style="gradientStyle"></div>
+            </div>
           </div>
         </div>
 
         <OpacitySlider
-          :showLabel="true"
+          class="has-align-self-center"
           v-if="imageSelected && maskUrl !== ''"
         />
 
-        <!-- View Mode if image is selected-->
-        <div
-          class="viewmode has-icons-left"
-          v-if="imageSelected && maskUrl !== ''"
+        <div class="select" v-if="imageSelected && maskUrl !== ''">
+          <select title="View mode" v-model="viewMode">
+            <option v-for="mode in viewModes" :key="mode" :value="mode">{{
+              mode
+            }}</option>
+          </select>
+        </div>
+
+        <button
+          v-if="parsedProbe.isVideo"
+          class="button"
+          :class="{ 'is-primary': showScoreAnnotations }"
+          title="Toggle video annotations"
+          @click="toggleShowScoreAnnotations"
         >
-          <label for="viewMode">Layout</label>
-          <div class="select is-small">
-            <select name="viewMode" v-model="viewMode">
-              <option v-for="mode in viewModes" :key="mode" :value="mode">{{
-                mode
-              }}</option>
-            </select>
-          </div>
-        </div>
-      </div>
+          <span class="icon is-small">
+            <font-awesome-icon icon="font" />
+          </span>
+        </button>
 
-      <div class="actions">
-        <div class="sorting as-addons">
-          <label for="analyticSort">Sort</label>
-          <div class="select is-small">
-            <select
-              name="analyticSort"
-              id="analyticSort"
-              @change="changeAnalyticSort($event)"
-            >
-              <option
-                value="score"
-                :selected="$store.getters.analyticSortField === 'score'"
-                >Integrity</option
-              >
-              <option
-                value="name"
-                :selected="$store.getters.analyticSortField === 'name'"
-                >Name</option
-              >
-              <option
-                value="mask"
-                :selected="$store.getters.analyticSortField === 'mask'"
-                >Mask</option
-              >
-            </select>
-          </div>
+        <div class="is-flex-grow has-align-self-center">
+          {{ title }}
         </div>
 
-        <dl class="download-options">
-          <dt class="download-options__title">Download</dt>
-          <dd class="download-options__option">
-            <a :href="reportURL(REPORT_TYPE.PDF)" target="_blank">PDF</a>
-          </dd>
-          <dd class="download-options__option">
-            <a :href="reportURL(REPORT_TYPE.CSV)">CSV</a>
-          </dd>
-          <dd v-if="parsedProbe.isImage" class="download-options__option">
-            <a
-              :href="pathToOriginalProbe"
-              :download="originalFileName"
-              target="_blank"
-              >Image</a
-            >
-          </dd>
-          <dd v-if="parsedProbe.isVideo" class="download-options__option">
-            <a
-              :href="pathToOriginalProbe"
-              :download="originalFileName"
-              target="_blank"
-              >Video</a
-            >
-          </dd>
-        </dl>
-
-        <div v-if="allowDelete" title="Delete Probe">
-          <button
-            class="button is-small is-text"
-            @click="
-              () => {
-                this.showModal = true;
-              }
-            "
+        <div class="select">
+          <select
+            title="Sort analytics by"
+            @change="changeAnalyticSort($event)"
           >
-            <font-awesome-icon
-              class="fa-2x"
-              style="color:rgb(32,156,238)"
-              icon="trash-alt"
-            />
-          </button>
+            <option
+              value="score"
+              :selected="$store.getters.analyticSortField === 'score'"
+              >Integrity</option
+            >
+            <option
+              value="name"
+              :selected="$store.getters.analyticSortField === 'name'"
+              >Name</option
+            >
+            <option
+              value="mask"
+              :selected="$store.getters.analyticSortField === 'mask'"
+              >Mask</option
+            >
+          </select>
         </div>
 
-        <div title="Close Window">
-          <router-link :to="{ name: 'gallery', query: this.queryParameters }">
-            <button class="button is-small is-text" @click="closeWindow">
-              <font-awesome-icon class="fa-2x" icon="times" />
-            </button>
-          </router-link>
+        <div class="buttons has-addons">
+          <a class="button" title="Download" @click.prevent="downloadMedia">
+            <span class="icon is-small">
+              <font-awesome-icon icon="download" />
+            </span>
+          </a>
+
+          <a
+            class="button"
+            title="Export as CSV"
+            :href="CSVurl"
+            target="_blank"
+          >
+            <span class="icon is-small">
+              <font-awesome-icon icon="file-csv" />
+            </span>
+          </a>
+
+          <a
+            class="button"
+            title="Export as PDF"
+            :href="PDFurl"
+            target="_blank"
+          >
+            <span class="icon is-small">
+              <font-awesome-icon icon="file-pdf" />
+            </span>
+          </a>
+        </div>
+
+        <div class="buttons has-addons">
+          <button
+            class="button"
+            title="Edit metadata"
+            :disabled="!probe"
+            @click="editProbeMetadataActive = true"
+          >
+            <span class="icon is-small">
+              <font-awesome-icon icon="pen" />
+            </span>
+          </button>
+
+          <button
+            class="button is-danger"
+            title="Delete"
+            :disabled="!probe"
+            @click="deleteProbeActive = true"
+          >
+            <span class="icon is-small">
+              <font-awesome-icon icon="trash-alt" />
+            </span>
+          </button>
         </div>
       </div>
     </div>
 
     <!-- ProbeView -->
-    <!-- handleNoZoom prevents the entire app from zooming -->
-    <div class="probe-viewer" @wheel.prevent="handleNoZoom($event)">
+    <div
+      class="probe-viewer"
+      @wheel.prevent="wheelZoom($event)"
+      @dblclick="resetTransform"
+    >
       <ProbeView
         :zoomState="zoomState"
-        :zoomToggle="zoomToggle"
-        :fullScreenToggle="fullScreenToggle"
         :rotateState="rotateState"
+        :blendMode="blendMode"
         :viewMode="viewMode"
       />
     </div>
 
     <div class="details">
-      <DetailsView />
+      <div class="tabs is-fullwidth is-small is-toggle is-marginless">
+        <ul>
+          <li
+            v-for="tab in tabs"
+            :key="tab.name"
+            :class="{ 'is-active': tab === selectedTab }"
+          >
+            <a @click="selectedTab = tab">{{ tab.name }}</a>
+          </li>
+        </ul>
+      </div>
+      <component
+        :is="selectedTab.component"
+        :probe="probe"
+        :probeId="probeId"
+      />
     </div>
 
-    <!-- Modal for deleting probe -->
-    <div class="modal" :class="{ 'is-active': this.showModal }">
-      <div class="modal-background">
-        <div class="modal-card" style="top: 40%; ">
-          <header class="modal-card-head">
-            <p class="modal-card-title"></p>
-            <button
-              class="delete"
-              aria-label="close"
-              @click="() => (this.showModal = false)"
-            ></button>
-          </header>
-          <section class="modal-card-body">
-            <h3>Are you sure you want to delete the selected probe?</h3>
-          </section>
-          <footer class="modal-card-foot">
-            <router-link :to="{ name: 'gallery', query: this.queryParameters }">
-              <button class="button is-danger" @click="deleteProbe">
-                Delete
-              </button>
-            </router-link>
-            <button
-              style="margin-left: 10px;"
-              class="button"
-              @click="() => (this.showModal = false)"
-            >
-              Cancel
-            </button>
-          </footer>
-        </div>
-      </div>
-    </div>
+    <EditProbeMetadataModal
+      :active.sync="editProbeMetadataActive"
+      :probe="probe"
+    />
+
+    <DeleteProbeModal
+      :active.sync="deleteProbeActive"
+      :probe="probe"
+      @delete="$router.push('/probes')"
+    />
   </div>
 </template>
 
 <script>
-import { setPreference, getPreference } from "@/helpers/userPreferences";
-import { mapGetters, mapState, mapMutations, mapActions } from "vuex";
+import { saveAs } from "file-saver";
+import { mapActions, mapGetters, mapState, mapMutations } from "vuex";
 import { probeParserMixin } from "../../mixins/probeParserMixin";
-import { buildRequest } from "@/helpers/urlBuilder";
 
-import * as axios from "axios";
-import DetailsView from "./DetailsView.vue";
-import OpacitySlider from "../common/OpacitySlider";
+import OpacitySlider from "@/components/common/OpacitySlider.vue";
+import DeleteProbeModal from "@/components/modals/DeleteProbeModal.vue";
+import EditProbeMetadataModal from "@/components/modals/EditProbeMetadataModal.vue";
+
+import Detectors from "./Detectors.vue";
+import Metadata from "./Metadata.vue";
+import ProbeBookmarks from "./ProbeBookmarks.vue";
 import ProbeView from "./ProbeView.vue";
+import Tags from "./Tags.vue";
 
 export default {
   name: "ProbeContainer",
+
   components: {
-    DetailsView,
+    DeleteProbeModal,
+    EditProbeMetadataModal,
     OpacitySlider,
     ProbeView
   },
 
   mixins: [probeParserMixin],
 
+  props: {
+    probeId: {
+      type: String,
+      required: true
+    }
+  },
+
   data: function() {
     return {
       base_uri: this.$store.getters.baseUri,
-      newLabels: "",
       rotateState: 0,
+      zoomState: 100,
+      blendMode: "normal",
+      supportBlendModes: [
+        "normal",
+        "multiply",
+        "screen",
+        "overlay",
+        "darken",
+        "lighten",
+        "difference",
+        "exclusion",
+        "luminosity"
+      ],
       viewMode: "overlay",
       viewModes: ["overlay", "horizontal", "vertical"], //, "zoom"
       colormap: "spectral",
@@ -260,31 +310,70 @@ export default {
         { name: "Viridis", map: "viridis" },
         { name: "Spectral", map: "spectral" }
       ],
-      zoomToggle: true,
-      REPORT_TYPE: {
-        CSV: 1,
-        PDF: 2
-      },
-      fullScreenToggle: true,
-      showModal: false
+      tabs: [
+        {
+          name: "Detectors",
+          component: Detectors
+        },
+        {
+          name: "Metadata",
+          component: Metadata
+        },
+        {
+          name: "Tags",
+          component: Tags
+        },
+        {
+          name: "Bookmarks",
+          component: ProbeBookmarks
+        }
+      ],
+      selectedTab: null,
+      editProbeMetadataActive: false,
+      deleteProbeActive: false
     };
   },
 
   computed: {
     ...mapState({
-      isAdmin: state => state.user.isAdmin,
-      username: state => state.user.name,
+      showScoreAnnotations: state => state.layout.showScoreAnnotations,
       probe: state => state.pipeline.probe,
-      probes: state => state.pipeline.probes,
-      zoomState: state => state.layout.zoomState,
-      enableDelete: state => state.config.enableDelete,
-      fusionModel: state => state.pipeline.fusionModel,
-      tagPrefixFlag: state => state.config.tagPrefixFlag,
-      userTagPrefix: state => state.config.userTagPrefix
+      probes: state => state.probes.probes
     }),
-    ...mapGetters(["imageSelected", "maskUrl", "queryParameters", "baseUrl"]),
+
+    ...mapGetters(["imageSelected", "maskUrl"]),
+
+    title() {
+      return this.probe.meta["File:Title"] || this.probe.meta["File:FileName"];
+    },
+
     meta() {
       return this.$store.getters.probe == null ? {} : this.$store.getters.meta;
+    },
+
+    previousProbe() {
+      const index = this.probes.findIndex(probe => probe.id === this.probeId);
+
+      if (index <= 0) {
+        return "";
+      }
+
+      return `/probes/${this.probes[index - 1].id}`;
+    },
+
+    nextProbe() {
+      const index = this.probes.findIndex(probe => probe.id === this.probeId);
+
+      if (index < 0) {
+        return "";
+      }
+
+      if (index === this.probes.length - 1) {
+        this.fetchMoreProbes();
+        return "";
+      }
+
+      return `/probes/${this.probes[index + 1].id}`;
     },
 
     gradientStyle: function() {
@@ -297,80 +386,106 @@ export default {
       // remove last comma
       linGrad = linGrad.substring(0, linGrad.length - 1);
       return {
-        background: `${linGrad})`
-      };
-    },
-    /* Only display the delete option if currently selected probe was uploaded by the current user */
-    probeIsUsers: function() {
-      /* If user tagging isn't defined in the config with these values then dont show button */
-      if (!(!!this.tagPrefixFlag && !!this.userTagPrefix)) return false;
-
-      /* Compare current user to uploaded for selected probe */
-      /* Dont display if uploadingUser is undefined */
-
-      const userTag = `${this.tagPrefixFlag}${this.userTagPrefix}`;
-      const uploadingUser = this.probe.tags[userTag];
-      return uploadingUser ? uploadingUser == this.username : false;
-    },
-    allowDelete: function() {
-      return (this.probeIsUsers && this.enableDelete) || this.isAdmin;
-    },
-    buildPath: function() {
-      const id = this.probe.id;
-      return {
-        path: `probes/${id}`,
-        fusion: this.fusionModel,
-        base_uri: this.base_uri
+        background: `${linGrad})`,
+        width: "20px",
+        height: "20px"
       };
     },
 
-    pathToOriginalProbe() {
-      return this.parsedProbe.isImage
-        ? this.parsedProbe.source
-        : this.parsedProbe.originalSource;
-    },
-    originalFileName() {
-      return this.parsedProbe.name;
-    }
-  },
-  watch: {
-    probe(current, previous) {
-      if (current.id != previous.id) {
-        this.resetTransform();
+    probeUrl: function() {
+      if (!this.$store.getters.probe) {
+        return null;
       }
+
+      var url = this.$store.getters.baseUri + "/input/";
+      var filename;
+
+      if (this.$store.getters.probe.analytic_info[0].detection.img_manip_req) {
+        filename = this.$store.getters.probe.analytic_info[0].detection
+          .img_manip_req.image.uri;
+      } else {
+        filename = this.$store.getters.probe.analytic_info[0].detection
+          .vid_manip_req.video.uri;
+      }
+
+      var start = filename.indexOf("input/") + 6;
+      filename = filename.substring(start);
+      url += filename;
+      return url;
     },
-    viewMode() {
-      this.resetZoomState();
+
+    url: function() {
+      if (!this.$store.getters.probe) {
+        return null;
+      }
+
+      var url = this.$store.getters.baseUri;
+      const id = this.$store.getters.probe.id;
+      const fusion = this.$store.getters.fusionModel;
+      url += "/probes/" + id + "?";
+      url += `includefused=1&fuser_id=${fusion}&download=yes`;
+
+      return url;
+    },
+
+    CSVurl: function() {
+      if (!this.$store.getters.probe) {
+        return null;
+      }
+
+      var url = this.$store.getters.baseUri;
+      const id = this.$store.getters.probe.id;
+      const fusion = this.$store.getters.fusionModel;
+      url += "/probes/" + id + "/csv?";
+      url += `includefused=1&fuser_id=${fusion}`;
+
+      return url;
+    },
+
+    PDFurl: function() {
+      if (!this.$store.getters.probe) {
+        return null;
+      }
+
+      var url = this.$store.getters.baseUri;
+      const id = this.$store.getters.probe.id;
+      const fusion = this.$store.getters.fusionModel;
+      url += "/probes/" + id + "/pdf?";
+      url += `includefused=1&fuser_id=${fusion}`;
+
+      return url;
+    },
+
+    wantsFused: function() {
+      return this.$store.getters.fusionModel !== "";
     }
   },
+
+  watch: {
+    probeId: {
+      handler() {
+        this.clearProbe();
+        this.selectProbe({ probe: { id: this.probeId } });
+        this.resetTransform();
+      },
+      immediate: true
+    }
+  },
+
   mounted() {
     this.$store.subscribe(mutation => {
       switch (mutation.type) {
         case "selectMask":
           if (this.viewMode !== "overlay") this.blendMode = "normal";
-          if (!this.maskUrl) this.viewMode = "overlay";
           break;
       }
     });
-
-    /* If user had colormap selected form prior session */
-    if (getPreference("colormap")) {
-      const preferredMap = getPreference("colormap");
-      this.colormap = preferredMap;
-      this.selectColormap(preferredMap);
-    }
   },
-  /*eslint no-unused-vars: ["error", { "args": "none" }]*/
+
   methods: {
-    ...mapMutations([
-      "handleZoomIn",
-      "handleZoomOut",
-      "resetZoomState",
-      "unselectAll",
-      "selectColormap",
-      "setProbes"
-    ]),
-    ...mapActions(["selectProbe"]),
+    ...mapMutations(["clearProbe", "toggleShowScoreAnnotations"]),
+    ...mapActions(["fetchMoreProbes", "selectProbe"]),
+
     rotateRight() {
       this.rotateState = (this.rotateState + 1) % 4;
     },
@@ -378,31 +493,33 @@ export default {
       this.rotateState = this.rotateState == 0 ? 3 : this.rotateState - 1;
     },
     resetTransform() {
-      if (this.maskUrl == "") this.viewMode = "overlay";
-      this.resetZoomState();
-      this.zoomToggle = !this.zoomToggle;
+      this.zoomState = 100;
+      this.rotateState = 0;
     },
     zoomIn() {
-      this.handleZoomIn();
-      this.zoomToggle = !this.zoomToggle;
+      this.zoomState += 50;
+      this.zoomState = Math.min(this.zoomState, 500);
     },
     zoomOut() {
-      this.handleZoomOut();
-      this.zoomToggle = !this.zoomToggle;
+      this.zoomState -= 50;
+      this.zoomState = Math.max(this.zoomState, 50);
     },
-    handleNoZoom(e) {},
-    closeWindow() {
-      this.unselectAll();
-    },
-    fullScreen() {
-      this.fullScreenToggle = !this.fullScreenToggle;
-    },
-    formatPercent() {
-      return Math.floor(this.$store.getters.detections.fused_score * 100);
+    wheelZoom(e) {
+      //normalize scroll speed because firefox is p dumb
+      var scrollSpeed = e.deltaY;
+      while (Math.abs(scrollSpeed) > 10)
+        scrollSpeed = Math.floor(scrollSpeed / 10);
+
+      this.zoomState -= scrollSpeed * Math.floor(this.zoomState / 50);
+      this.zoomState =
+        this.zoomState <= 50
+          ? 50
+          : this.zoomState >= 500
+          ? 500
+          : this.zoomState;
     },
     changeColormap(event) {
-      this.selectColormap(event.target.value);
-      setPreference("colormap", event.target.value);
+      this.$store.commit("selectColormap", event.target.value);
     },
     changeAnalyticSort(event) {
       let val = event.target.value;
@@ -419,48 +536,23 @@ export default {
         alert("ERROR");
       }
     },
-    reportURL(val) {
-      const { path, fusion, base_uri } = this.buildPath;
-      const params =
-        val == this.REPORT_TYPE.PDF
-          ? { fuser_id: fusion, pdf: "yes" }
-          : { includefused: 1, fuser_id: fusion, csv: "yes" };
-      return buildRequest(base_uri, path, params);
-    },
-    /* Delete probe, close window and remove probe from gallery */
-    deleteProbe() {
-      const { path, base_uri } = this.buildPath;
-      const id = this.probe.id;
-      const url = `${base_uri}${path}`;
-      axios
-        .delete(url)
-        .then(response => {
-          const filteredProbes = this.probes.filter(probe => {
-            return probe.id != id;
-          });
-          alert(response.data);
-          this.setProbes(filteredProbes);
-          this.closeWindow;
-        })
-        .catch(err => alert(err.response.data));
+    downloadMedia() {
+      saveAs(this.probeUrl, this.$store.getters.probe.meta["File:FileName"]);
     }
+  },
+
+  created() {
+    this.selectedTab = this.tabs[0];
   }
 };
 </script>
 
 <style scoped>
-label {
-  padding-inline-end: 0.2rem;
-}
-
 .probe-container {
-  --control-gap: 8px;
-
   height: 100%;
   padding: 0;
   margin: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   background: #eee;
   display: grid;
   grid-template-rows: auto 1fr;
@@ -470,140 +562,15 @@ label {
 
 .header {
   grid-column: 1 / -1;
-  padding: 4px;
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-
-  background-image: linear-gradient(white, #ddd);
-}
-
-.manipulations,
-.actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.manipulations > div,
-.actions > div {
-  padding: 4px;
-}
-
-.manipulations > div {
-  margin-right: var(--control-gap);
-}
-
-.actions > div {
-  margin-left: var(--control-gap);
-}
-
-.download-options {
-  display: flex;
-  margin-left: 12px;
-  margin-right: 10px;
-}
-
-.download-options__title {
-  margin-right: 8px;
-  font-weight: 400;
-}
-
-.download-options__title::after {
-  content: ":";
-}
-
-.download-options__option {
-  min-width: 3em;
 }
 
 .details {
   overflow-y: auto;
 }
 
-.viewmode,
-.sorting {
-  display: flex;
-  align-items: center;
-}
-
-.control.has-icons-left .icon {
-  height: 1.8em;
-  width: 1.8em;
-  top: 50%;
-  transform: translateY(-50%);
-  margin-left: 0.15em;
-}
-
-.full {
-  height: calc(100% - 50px);
-}
-
 .probe-viewer {
+  background: white;
   overflow-x: hidden;
   overflow-y: auto;
-}
-
-.detail-viewer {
-  margin: 0;
-  margin-bottom: -10px;
-  padding: 0;
-  width: 400px;
-  overflow-x: none;
-  overflow-y: auto;
-  border-left: 1px solid #aaa;
-  background-color: #ccc;
-  border-radius: 5px;
-}
-
-.buttons span {
-  display: inline-flex;
-  font-size: 0.75rem;
-  height: 2.25em;
-  vertical-align: top;
-  border: 1px solid #dbdbdb;
-  color: #363636;
-  -webkit-box-pack: center;
-  -ms-flex-pack: center;
-  justify-content: center;
-  padding: 0.375em 0.75em;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.buttons label {
-  display: inline-flex;
-  font-size: 0.85rem;
-  height: 2.25em;
-  vertical-align: top;
-  color: #363636;
-  -webkit-box-pack: center;
-  -ms-flex-pack: center;
-  justify-content: center;
-  padding: 0.375em 0.75em;
-  font-weight: 500;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.zoomDisplay {
-  cursor: pointer;
-  transition: 0.3s;
-}
-.zoomDisplay:hover {
-  box-shadow: 0 0 1px 1px gold;
-  background: lightgoldenrodyellow;
-}
-
-.fill-box {
-  position: absolute;
-  height: 27px;
-  width: 25px;
-}
-
-.no-border {
-  border: none;
-  position: relative;
-  display: flex;
 }
 </style>

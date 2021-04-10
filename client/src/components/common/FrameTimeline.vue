@@ -1,69 +1,61 @@
 <template>
-  <div class="container" :style="computeBg()">
-    <div
-      class="marker"
-      v-for="frame in frameData"
-      :key="frame.range.start"
-      :style="computeStyle(frame.range.start, frame.range.end, frame.score)"
-    ></div>
+  <div class="frame-timeline">
+    <svg
+      class="is-overlay"
+      :viewBox="`0 0 ${frames} 1`"
+      preserveAspectRatio="none"
+      width="100%"
+      height="100%"
+    >
+      <rect
+        v-for="(range, i) in frameData"
+        :key="i"
+        :x="range.range.start"
+        y="0"
+        :width="range.range.end - range.range.start"
+        height="1"
+        :fill="computeFill(range.score)"
+      />
+    </svg>
   </div>
 </template>
 
 <script>
-import * as cGradient from "../../helpers/colorGradients";
+import { mapState } from "vuex";
+import { interpolateGradient } from "@/helpers/colorGradients";
+
 export default {
   name: "FrameTimeline",
+
   props: {
-    frameData: Array,
-    useColorMap: Boolean
+    frameData: Array
   },
-  methods: {
-    computeBg() {
-      if (this.useColorMap) {
-        let col = cGradient.interpolateGradient(
-          this.$store.getters.colormap,
-          1
-        );
-        return {
-          background: `rgba(${col[0]}, ${col[1]}, ${col[2]}, 255)`
-        };
-      }
-    },
-    computeStyle(start, end, score) {
-      let style = {
-        left: (start / this.lastFrame) * 100 + "%",
-        width: ((end - start) / this.lastFrame) * 100 + "%"
-      };
-      if (this.useColorMap) {
-        let col = cGradient.interpolateGradient(
-          this.$store.getters.colormap,
-          1 - score
-        );
-        style["background"] = `rgba(${col[0]}, ${col[1]}, ${col[2]}, 255)`;
-      }
-      return style;
+
+  computed: {
+    ...mapState({
+      colormap: state => state.layout.colormap,
+      probe: state => state.pipeline.probe
+    }),
+
+    frames() {
+      return this.probe.meta["File:Frames"];
     }
   },
-  computed: {
-    lastFrame: function() {
-      return this.$store.getters.meta["File:Frames"];
+
+  methods: {
+    computeFill(score) {
+      const [r, g, b] = interpolateGradient(this.colormap, 1 - score);
+      return `rgb(${r}, ${g}, ${b})`;
     }
   }
 };
 </script>
 
 <style scoped>
-.container {
+.frame-timeline {
+  background: linear-gradient(gray, whitesmoke);
   position: relative;
   width: 100%;
   height: 100%;
-  background: #333;
-  max-width: 100%;
-}
-.marker {
-  position: absolute;
-  background: white;
-  height: 100%;
-  width: 3px;
 }
 </style>

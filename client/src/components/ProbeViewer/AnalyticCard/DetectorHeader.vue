@@ -1,11 +1,10 @@
 <template>
   <div class="analytic_card__header">
     <div class="analytic_card__name">{{ headerData.detectorName }}</div>
-    <div v-if="headerData.status.completed">
+    <div class="analytic_card__indicator" v-if="headerData.status.completed">
       <font-awesome-icon
         v-if="!headerData.status.optedOut"
         :icon="headerData.iconFromScore"
-        class="fas fa-lg"
         :class="headerData.classFromScore"
       />
     </div>
@@ -37,6 +36,10 @@ export default {
 .analytic_card__header {
   display: flex;
   justify-content: space-between;
+}
+
+.analytic_card__indicator {
+  font-size: 1.2rem;
 }
 
 .analytic_card__name {

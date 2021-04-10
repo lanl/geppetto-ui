@@ -23,17 +23,13 @@
       </tr>
     </template>
 
-    <template v-if="hasFacets">
-      <br />
-      <tr v-if="validSortedFacets.length > 0">
-        Classification
-      </tr>
+    <template v-if="manipulationFacets">
       <tr v-for="facet in validSortedFacets" :key="facet[1]" class="facet">
         <td>
           {{ facet[0] }}
         </td>
         <td>
-          <IntegrityScore :score="facet[1]" format="percent" />
+          <IntegrityScore :score="facet[1]" format="integrity" />
         </td>
       </tr>
     </template>
@@ -42,7 +38,6 @@
 
 <script>
 import { mapState } from "vuex";
-import isempty from "lodash.isempty";
 import IntegrityScore from "../../common/IntegrityScore";
 
 export default {
@@ -70,9 +65,6 @@ export default {
       });
 
       return sorted.filter(f => f[1] > 0.01);
-    },
-    hasFacets: function() {
-      return !isempty(this.manipulationFacets);
     }
   }
 };
@@ -100,10 +92,6 @@ tr.facet {
 }
 
 tr:nth-of-type(2) {
-  font-weight: 600;
-}
-
-tr:nth-of-type(3) {
   border-top-style: solid;
 }
 </style>

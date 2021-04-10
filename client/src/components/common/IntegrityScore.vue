@@ -12,21 +12,22 @@ export default {
   },
   computed: {
     formattedScore() {
+      const percent = new Intl.NumberFormat(undefined, { style: "percent" });
+
       if (this.score === undefined) {
         return "Not Calculated";
       }
 
       if (this.score === -1) return "Opted out of score";
-      if (this.score < 0 || this.score > 1) return "Error score out of range";
 
       const format = this.format.toLowerCase();
       let result = "";
 
       result =
         format === "integrity"
-          ? Math.floor((1 - this.score) * 100) + "%"
+          ? percent.format(1 - this.score)
           : format === "percent"
-          ? Math.floor(this.score * 100) + "%"
+          ? percent.format(this.score)
           : this.score;
 
       return result;

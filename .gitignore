@@ -1,7 +1,9 @@
 node_modules/
-public/
+server/public/
 .DS_Store
 *.log
 
 deploy.retry
-.vscode
+
+pipeline/docker-compose.local.yml
+server/config/local.json

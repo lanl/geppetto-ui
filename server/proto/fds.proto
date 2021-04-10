@@ -1,0 +1,136 @@
+syntax = "proto3";
+
+package seeingstrings.fds;
+
+service FaceDetection {
+  // Detects faces in a video.
+  rpc DetectFaces(DetectFacesRequest) returns (DetectFacesTask);
+
+  // Retrieves a detect faces task.
+  rpc GetDetectFacesTask(GetDetectFacesTaskRequest) returns (DetectFacesTask);
+
+  // Deletes tasks that completed with a non-zero status code
+  rpc DeleteFailedTasks(DeleteFailedTasksRequest) returns (DeleteFailedTasksResponse);
+}
+
+message SortingOptions {
+  // Intersection over Union (IOU) between successive bounding boxes.
+  double iou_threshold = 1;
+
+  // Amount of continuous video time required for saved faces (seconds).
+  int32 min_duration_sec = 2;
+
+  // Amount of frames required; calculated by FDS and added dynamicly
+  int32 min_duration_frames = 3;
+
+  // Number of frames that can be "missed" in a consecutive fashion.
+  int32 max_frame_skip = 4;
+
+  // Percentage of total frames that can be skipped.
+  double fragmentation_percentage = 5;
+}
+
+message DetectFacesRequest {
+  // Path to video file.
+  string video_uri = 1;
+
+  // Face detection algorithm.
+  string algorithm_id = 2;
+
+  // Algorithm-specific options.
+  SortingOptions sorting_options = 3;
+}
+
+message GetDetectFacesTaskRequest {
+  // Task ID to retrieve.
+  string task_id = 1;
+}
+
+message DetectFacesTask {
+  // Task ID.
+  string id = 1;
+
+  // Request.
+  DetectFacesRequest request = 2;
+
+  // Whether the task is complete.
+  bool done = 3;
+
+  // Indicates success or error. This field is only set if the task is complete.
+  Status status = 4;
+
+  // Response. This field is only set if the task is complete.
+  DetectFacesResponse response = 5;
+}
+
+message DetectFacesResponse {
+  // Faces detected.
+  repeated Face faces = 1;
+}
+
+message Face {
+  // Unique ID.
+  string face_id = 1;
+
+  // First frame in which this face appears.
+  int32 start_frame = 2;
+
+  // Last frame in which this face appears.
+  int32 end_frame = 3;
+
+  // List of skipped frames
+  repeated int32 skipped_frames = 4;
+
+  // Raw coordinates
+  repeated BoundingBox raw_coords = 5;
+
+  // Calculated bounding box.
+  BoundingBox smooth_coords = 6;
+}
+
+message BoundingBox {
+  // Minimum x-coordinate (pixels).
+  int32 x1 = 1;
+
+  // Minimum y-coordinate (pixels).
+  int32 y1 = 2;
+
+  // Maximum x-coordinate (pixels).
+  int32 x2 = 3;
+
+  // Maximum y-coordinate (pixels).
+  int32 y2 = 4;
+}
+
+message Status {
+  // Status code.
+  Code code = 1;
+
+  // Detail message.
+  string message = 2;
+}
+
+enum Code {
+  // No error.
+  OK = 0;
+
+  // An unexpected error occurred.
+  UNEXPECTED = 1;
+
+  // Parameter contains an invalid value.
+  INVALID_ARGUMENT = 2;
+
+  // File could not be found.
+  NOT_FOUND = 3;
+
+  // File is in an unsupported format.
+  UNSUPPORTED_FORMAT = 4;
+}
+
+message DeleteFailedTasksRequest {
+}
+
+message DeleteFailedTasksResponse {
+  // Task IDs that were deleted
+  repeated string deleted_task_ids = 1;
+}

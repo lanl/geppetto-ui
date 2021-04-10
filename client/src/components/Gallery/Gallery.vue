@@ -1,75 +1,84 @@
-/* eslint-disable vue/valid-v-on */
 <template>
   <div ref="Gallery" id="gallery">
     <section v-if="galleryMode === 'grid'">
       <GalleryImage
-        v-for="i in probes"
-        :key="i.id"
-        :gridHeight="gridHeight"
-        :probe="i"
+        v-for="probe in probes"
+        :key="probe.id"
+        :probe="probe"
+        :selected="isProbeSelected(probe.id)"
+        @update:selected="selectProbe({ probeId: probe.id, selected: $event })"
       />
     </section>
     <section v-else>
-      <ContentCard v-for="i in probes" :key="i.id" :probe="i" />
+      <ContentCard
+        v-for="probe in probes"
+        :key="probe.id"
+        :probe="probe"
+        :selected="isProbeSelected(probe.id)"
+        @update:selected="selectProbe({ probeId: probe.id, selected: $event })"
+      />
     </section>
   </div>
 </template>
 
 <script>
-import { mapState, mapMutations, mapActions } from "vuex";
+import { mapActions, mapMutations, mapState, mapGetters } from "vuex";
 
 import GalleryImage from "./GalleryImage.vue";
 import ContentCard from "./ContentCard.vue";
 
 export default {
   name: "Gallery",
+
   components: {
     GalleryImage,
     ContentCard
   },
 
-  data: function() {
-    return {
-      imgArr: []
-    };
-  },
-
-  props: { galleryMode: { type: String, required: true } },
-
   methods: {
-    ...mapActions(["getProbes"]),
-    ...mapMutations(["setLoading"]),
+    ...mapMutations(["selectProbe", "setGalleryScrollPosition"]),
+    ...mapActions(["fetchProbes", "fetchMoreProbes"]),
+
     handleScroll() {
       let bottomOfWindow =
         this.$refs.Gallery.scrollTop + this.$refs.Gallery.offsetHeight + 100 >=
         this.$refs.Gallery.scrollHeight;
 
       if (bottomOfWindow) {
-        this.nextPage();
+        this.fetchMoreProbes();
       }
-    },
-    nextPage() {
-      if (this.pageToken === "") return;
-      this.getProbes(false);
-    },
 
-    changeGalleryMode() {}
+      this.setGalleryScrollPosition(this.$refs.Gallery.scrollTop);
+    }
   },
 
   computed: {
     ...mapState({
-      analyticList: state => state.pipeline.analyticList,
-      pageToken: state => state.layout.pageToken,
-      probes: state => state.pipeline.probes
+      filters: state => state.filters,
+      galleryMode: state => state.layout.galleryMode,
+      galleryScrollPosition: state => state.layout.galleryScrollPosition,
+      probe: state => state.pipeline.probe,
+      isLoading: state => state.probes.isLoading,
+      probes: state => state.probes.probes,
+      probesAreValid: state => state.probes.probesAreValid
     }),
 
-    gridHeight: function() {
-      if (this.$store.getters.probe !== null) return 100;
-      return 150;
+    ...mapGetters(["isProbeSelected"])
+  },
+
+  watch: {
+    probesAreValid: {
+      handler() {
+        if (!this.probesAreValid) {
+          this.fetchProbes();
+        }
+      },
+      immediate: true
     }
   },
 
   mounted() {
+    //this.handleScroll();
     this.$refs.Gallery.addEventListener("scroll", this.handleScroll);
 
     // pause and check if we need to load more once images render.
@@ -78,18 +87,20 @@ export default {
      * to load more images. we need to reach the bottom of the screen if we can  */
     var _v = this;
     var interval = setInterval(() => {
-      if (!_v.$store.getters.isLoading && _v.$refs.Gallery !== undefined) {
+      if (!_v.isLoading && _v.$refs.Gallery !== undefined) {
         let bottomOfWindow =
           _v.$refs.Gallery.scrollTop + _v.$refs.Gallery.offsetHeight ===
           _v.$refs.Gallery.scrollHeight;
 
         if (bottomOfWindow) {
-          _v.nextPage();
+          _v.fetchMoreProbes();
         } else {
           clearInterval(interval);
         }
       }
     }, 1000);
+
+    this.$refs.Gallery.scrollTop = this.galleryScrollPosition;
   },
 
   beforeDestroy() {

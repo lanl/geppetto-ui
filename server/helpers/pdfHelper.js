@@ -1,5 +1,7 @@
+const path = require("path");
 const pdfPrinter = require("pdfmake");
-const isempty = require("lodash.isempty");
+const applicationRoot = path.dirname(process.mainModule.filename);
+const { video, image, fusion } = require("../models/analyticsList");
 const { applicationOutputPath, thumbnailPath } = require("./directories");
 
 function getStyles() {
@@ -26,21 +28,7 @@ function getStyles() {
     margin: [0, 6, 0, 3],
     bold: true
   };
-  styles.analyticNameFacets = { margin: [0, 6, 0, 3] };
-
-  styles.analyticDescription = {
-    ...styles.analyticBase,
-    margin: [0, 3, 0, 6],
-    italics: true
-  };
-  styles.facetsList = {
-    ...styles.analyticBase,
-    margin: [0, 3, 0, 6],
-    fontSize: 8
-  };
-
-  styles.explanation = { ...styles.facetsList };
-  styles.time = { ...styles.explanation, margin: [0, 3, 0, 3] };
+  styles.analyticDescription = { ...styles.analyticBase, margin: [0, 3, 0, 6] };
 
   return styles;
 }
@@ -104,32 +92,6 @@ function summary(image, score, fuserName, probe, file) {
       }
     }
   ];
-}
-
-function formatFacets(facets) {
-  var sorted = [];
-  for (var key in facets) {
-    if (Object.prototype.hasOwnProperty.call(facets, key))
-      sorted.push([key, facets[key]]);
-  }
-  sorted = sorted.sort((a, b) => {
-    const f1 = a[1];
-    const f2 = b[1];
-    if (f1 >= f2) return -1;
-    if (f2 > f1) return 1;
-  });
-
-  //Build array containing elements of [FusionName, Score]
-  //with only scores greater than .01
-  const finalSorted = sorted
-    .filter(f => f[1] > 0.01)
-    .map(f => [f[0], `${Math.round(f[1] * 100)}%`]);
-
-  // Return a string ----- 'Reformat: 50% | Splicing: 65%'
-  return finalSorted.map((facetInfo, index) => {
-    const char = index == finalSorted.length - 1 ? "" : "|";
-    return `${facetInfo[0]}: ${facetInfo[1]} ${char} `;
-  });
 }
 
 function pdfAnalytics(analyticList) {
@@ -206,7 +168,6 @@ function pdfAnalytics(analyticList) {
 function buildRow(analytic) {
   const row = [];
   const border = [false, true, false, true];
-  const timeString = `Analyzed in ${analytic.time}`;
 
   // Three cells to a row;
   let firstCell = { border };
@@ -214,35 +175,10 @@ function buildRow(analytic) {
   const maskOptions = { border };
 
   const regex = /\/medifor\/output/gi;
-  let textStack = !isempty(analytic.facets)
-    ? [
-        {
-          text: [
-            { text: analytic.friendlyName, style: "analyticName" },
-            {
-              text: ` - ${formatFacets(analytic.facets).join("")}`,
-              style: "facetsList"
-            }
-          ],
-          style: "analyticNameFacets"
-        },
-        { text: analytic.description, style: "analyticDescription" }
-      ]
-    : [
-        { text: analytic.friendlyName, style: "analyticName" },
-        { text: analytic.description, style: "analyticDescription" }
-      ];
-
-  /* If analytic has valid explanation add it to the output */
-  if (analytic.explanation.length > 0) {
-    textStack.push({ text: analytic.explanation, style: "explanation" });
-  }
-
-  /* If analytic is completed add the completion time to output */
-  if (analytic.stage == 3 && analytic.status == 1) {
-    textStack.push({ text: timeString, style: "time" });
-  }
-
+  const textStack = [
+    { text: analytic.friendlyName, style: "analyticName" },
+    { text: analytic.description, style: "analyticDescription" }
+  ];
   const score =
     analytic.integrityScore == -1
       ? null
@@ -277,13 +213,7 @@ function buildRow(analytic) {
   return row;
 }
 
-exports.createPDF = (
-  fuser,
-  fusionList,
-  analyticDataList,
-  detectionList,
-  res
-) => {
+exports.createPDF = (fuser, filelist, analyticDataList, detectionList, res) => {
   var fonts = {
     Helvetica: {
       normal: "Helvetica",
@@ -295,22 +225,27 @@ exports.createPDF = (
 
   //In some instances a video can be viewed where it will not have a fuser selected
   //We must check if fusion info is defined, if not then just return 'No Fuser Selected'
+
   const detection = detectionList.detections[0];
-  const resources = detection.req_resources;
   const currentFusion =
     detection.fusion_info &&
     detection.fusion_info.find(f => f.fuser_id == fuser);
-  const target = currentFusion
-    ? currentFusion.fusion.img_manip || currentFusion.fusion.vid_manip
-    : "-1";
-  const optedIn = currentFusion
-    ? target.opt_out !== 1 && target.opt_out !== 2
-    : "-1";
+  let target;
+  let optedIn = false;
+
+  if (currentFusion && currentFusion.fusion.img_manip) {
+    target = currentFusion.fusion.img_manip;
+    optedIn = target.opt_out !== 1 && target.opt_out !== 2;
+  } else if (currentFusion && currentFusion.fusion.vid_manip) {
+    target = currentFusion.fusion.vid_manip;
+    optedIn = !target.opt_out.includes(0);
+  }
+
   const integrityScore = currentFusion
     ? scoreOrFacets(detection, optedIn, target, fuser)
     : "";
   const fuserName = currentFusion
-    ? fusionList.find(f => f.id == fuser).name
+    ? fusion.find(f => f.id == fuser).name
     : "No Fuser Selected";
 
   const today = new Date();
@@ -323,20 +258,14 @@ exports.createPDF = (
     .padStart(2, "0")}`;
 
   const printer = new pdfPrinter(fonts);
-  const probe = detection.meta["Hash:md5"];
+  const probe = detection.id;
   const file = {
     name: detection.meta["File:FileName"],
     size: detection.meta["File:FileSize"],
     date: detection.meta["File:UploadDate"].slice(0, 10)
   };
 
-  /* Video thumbnail extension will always be .jpg */
-  /* Have to get image extension from the meta data...otherwise some img extensions
-   * would be .jpeg which is incorrect */
-  let imgExt = detection.meta["File:FileTypeExtension"];
-  const thumbnailUrl = resources[0].type.includes("video")
-    ? `${thumbnailPath}/${detection.id}.jpg`
-    : `${thumbnailPath}/${detection.id}.${imgExt}`;
+  const thumbnailUrl = `${thumbnailPath}/${detection.id}.jpg`;
 
   var docDefinition = {
     pageSize: "LETTER",
@@ -371,16 +300,39 @@ exports.createPDF = (
   }
 
   function scoreOrFacets(detection, optedIn, target, fuser) {
-    const validScore = 0 <= target.score <= 1;
     if (fuser == "multi") {
       return formatFacets(target.facets).join("");
     } else {
-      return detection.has_fused && optedIn && validScore
+      return detection.has_fused && optedIn
         ? Math.floor((1 - target.score) * 100) + "%"
-          ? detection.has_fused && optedIn && !validScore
-          : "Error Score out of Range"
         : "No Score Computed";
     }
+  }
+
+  function formatFacets(facets) {
+    var sorted = [];
+    for (var key in facets) {
+      if (Object.prototype.hasOwnProperty.call(facets, key))
+        sorted.push([key, facets[key]]);
+    }
+    sorted = sorted.sort((a, b) => {
+      const f1 = a[1];
+      const f2 = b[1];
+      if (f1 >= f2) return -1;
+      if (f2 > f1) return 1;
+    });
+
+    //Build array containing elements of [FusionName, Score]
+    //with only scores greater than .01
+    const finalSorted = sorted
+      .filter(f => f[1] > 0.01)
+      .map(f => [f[0], `${Math.round(f[1] * 100)}%`]);
+
+    // Return a string ----- 'Reformat: 50% | Splicing: 65%'
+    return finalSorted.map((facetInfo, index) => {
+      const char = index == finalSorted.length - 1 ? "" : "|";
+      return `${facetInfo[0]}: ${facetInfo[1]} ${char} `;
+    });
   }
 
   var options = {};

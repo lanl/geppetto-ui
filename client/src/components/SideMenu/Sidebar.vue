@@ -1,17 +1,29 @@
 <template>
   <div class="full-side dark">
-    <div
-      v-if="(enableGroups && username && groups.length > 0) || !enableGroups"
-      class="static-side"
-    >
-      <SidebarIcon iconTitle="Upload" iconType="upload" :expands="false" />
-      <SidebarIcon iconTitle="Import" iconType="cloud-upload-alt" />
-      <SidebarIcon iconTitle="Filters" iconType="filter" :expands="true" />
+    <div class="static-side">
+      <SidebarLink title="Gallery" icon="photo-video" to="/probes" />
+      <SidebarLink title="Histogram" icon="chart-bar" to="/histogram" />
+      <SidebarLink
+        title="Upload"
+        icon="upload"
+        to="/upload"
+        :showProgress="isUploading"
+        :progress="progress"
+        :total="total"
+      />
+      <SidebarLink title="Analytics" icon="cog" to="/analytics" />
+      <SidebarLink title="Bookmarks" icon="bookmark" to="/bookmarks" />
+      <SidebarIcon
+        title="Filters"
+        icon="filter"
+        :isActive="expanded"
+        @click="expanded = !expanded"
+      />
     </div>
-    <div class="expanding-side" :class="expandedClass">
+    <div class="expanding-side" :class="{ active: expanded }">
       <!-- Individual expandable Components here-->
       <keep-alive>
-        <component :is="selectedMenu" v-bind="menuProps"></component>
+        <SidebarFilters v-if="expanded" />
       </keep-alive>
     </div>
   </div>
@@ -20,54 +32,32 @@
 <script>
 import { mapState } from "vuex";
 
+import SidebarFilters from "./SidebarFilters.vue";
 import SidebarIcon from "./SidebarIcon.vue";
-
-import Filters from "./SidebarFilters.vue";
+import SidebarLink from "./SidebarLink.vue";
 
 export default {
   name: "Sidebar",
-  data: function() {
-    return {};
-  },
+
   components: {
-    Filters,
-    SidebarIcon
+    SidebarFilters,
+    SidebarIcon,
+    SidebarLink
   },
-  methods: {},
+
+  data() {
+    return {
+      expanded: false
+    };
+  },
+
   computed: {
     ...mapState({
-      selectedMenu: state => {
-        const selectedMenu = state.layout.selectedMenu;
-        const validMenus = ["Filters", "Download"];
-
-        if (validMenus.includes(selectedMenu)) {
-          return selectedMenu;
-        }
-      },
-      username: state => state.user.name,
-      groups: state => state.user.groups,
-      enableGroups: state => state.config.enableGroups,
-      menuProps: state => {
-        if (state.layout.selectedMenu === "Filters") {
-          return { initialFusionModel: state.pipeline.defaultFusionModel };
-        }
-      }
-    }),
-
-    expanded: function() {
-      return (
-        this.$store.getters["selectedMenu"] === "Filters" ||
-        this.$store.getters["selectedMenu"] === "Settings" ||
-        this.$store.getters["selectedMenu"] === "Download"
-      );
-    },
-    expandedClass: function() {
-      return {
-        active: this.expanded
-      };
-    }
-  },
-  mounted() {}
+      isUploading: state => state.upload.isUploading,
+      progress: state => state.upload.progress,
+      total: state => state.upload.total
+    })
+  }
 };
 </script>
 
@@ -80,7 +70,6 @@ export default {
 }
 .static-side {
   height: 100%;
-  width: 4em;
   padding-right: 6px;
   float: left;
   border-right: 1px solid #444;

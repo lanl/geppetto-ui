@@ -3,8 +3,10 @@
     <span
       v-if="maskData.detectionType == 'fuser'"
       class="analytic_card__mask--text"
-      >No Mask</span
     >
+      <span v-if="maskData.isImage">No Mask</span>
+      <font-awesome-icon v-else icon="play-circle" size="lg" />
+    </span>
     <img
       class="analytic_card__mask--image"
       v-else-if="maskData.hasMask"
@@ -15,7 +17,8 @@
       class="analytic_card__mask--text"
       v-else-if="maskData.status.completed || maskData.status.optedOut"
     >
-      No Mask
+      <span v-if="maskData.isImage">No Mask</span>
+      <font-awesome-icon v-else icon="play-circle" size="lg" />
     </p>
     <p class="analytic_card__mask--text" v-else-if="maskData.status.failed">
       ✖️
@@ -29,7 +32,6 @@
     <div v-if="frameDataExists()" class="analytic_card__mask--timeline">
       <FrameTimeline
         :frameData="maskData.data.vid_manip.localization.frame_detection"
-        :useColorMap="true"
       />
     </div>
   </div>
@@ -37,8 +39,6 @@
 
 <script>
 import FrameTimeline from "../../common/FrameTimeline";
-import { buildRequest } from "@/helpers/urlBuilder";
-import { mapGetters } from "vuex";
 
 export default {
   name: "DetectorMask",
@@ -52,13 +52,17 @@ export default {
     FrameTimeline
   },
   computed: {
-    ...mapGetters(["baseUri"]),
     url: function() {
+      var url = this.$store.getters.baseUri;
       const detector = this.maskData.data;
-      var filename = detector.img_manip.localization.mask.uri;
-      var start = filename.indexOf("output/");
-      filename = filename.substring(start);
-      const url = buildRequest(this.baseUri, filename);
+      if (this.maskData.isImage) {
+        var filename = detector.img_manip.localization.mask.uri;
+        var start = filename.indexOf("output/");
+        filename = filename.substring(start);
+        url += "/" + filename;
+      } else {
+        console.log("Unimplemented");
+      }
       return url;
     }
   },

@@ -1,5 +1,7 @@
 <template>
   <ul class="expansion" :class="{ active: expansionData.isSelected }">
+    <li v-if="hasValidTime">Analyzed in {{ expansionData.time }}</li>
+
     <li
       v-if="hasExplanation"
       class="about"
@@ -17,8 +19,6 @@
       <strong>About this Analytic</strong>
       {{ expansionData.analyticDescription }}
     </li>
-
-    <li v-if="hasValidTime">Analyzed in {{ expansionData.time }}</li>
   </ul>
 </template>
 
@@ -70,6 +70,10 @@ ul.active {
 
 li {
   margin-top: 4px;
+}
+
+li.new-section {
+  border-top: solid 0.5px hsl(207, 12%, 53%);
 }
 
 .field {

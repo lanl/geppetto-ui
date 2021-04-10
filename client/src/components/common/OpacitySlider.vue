@@ -4,6 +4,7 @@
     <input
       type="range"
       name="opacity"
+      title="Opacity"
       min="0"
       max="1"
       step="0.05"

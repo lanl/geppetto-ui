@@ -1,6 +1,9 @@
-const Pipeline = require("../models/pipeline");
+const {
+  video: videoAnalytics,
+  image: imageAnalytics,
+  fusion: fusers
+} = require("../models/analyticsList");
 
 exports.index = async function(req, res, next) {
-  const analyticsList = await Pipeline.getAnalyticsList();
-  res.json(analyticsList);
+  res.json({ imageAnalytics, videoAnalytics, fusers });
 };

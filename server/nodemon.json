@@ -1,7 +1,6 @@
 {
     "env": {
       "WORKFLOW_HOST": "localhost",
-      "WORKING_DIR" : "/tmp/analyticsui",
-      "NODE_ENV": "development"
+      "WORKING_DIR" : "/tmp/analyticsui"
     }
 }

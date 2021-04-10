@@ -12,8 +12,6 @@
 
 <script>
 import SupplementalContainer from "./components/SupplementalPage/SupplementalContainer.vue";
-import { mapGetters } from "vuex";
-import { buildRequest } from "@/helpers/urlBuilder";
 import * as axios from "axios";
 
 export default {
@@ -29,7 +27,6 @@ export default {
     SupplementalContainer
   },
   computed: {
-    ...mapGetters(["baseUri"]),
     probeData: function() {
       return this.probe;
     },
@@ -42,9 +39,10 @@ export default {
     }
   },
   methods: {
-    getProbeInfo(hash) {
-      const path = `/probes/${hash}`;
-      const url = buildRequest(this.baseUri, path);
+    getProbeInfo(hash, baseUrl) {
+      const url = baseUrl.includes("localhost")
+        ? `${baseUrl}/probes/${hash}`
+        : `/probes/${hash}`;
       const probe = axios.get(url);
 
       probe
@@ -55,9 +53,10 @@ export default {
           console.log("Error Retrieving Data", err);
         });
     },
-    getAnalyticFriendly() {
-      const path = `/analytics`;
-      const url = buildRequest(this.baseUri, path);
+    getAnalyticFriendly(baseUrl) {
+      const url = baseUrl.includes("localhost")
+        ? `${baseUrl}/analytics`
+        : `/analytics`;
       const friendly = axios.get(url);
 
       friendly
@@ -78,9 +77,14 @@ export default {
   .* keeping the 'state' of this component seperate from the global state
   */
   created() {
+    const baseUrl =
+      window.location.hostname == "localhost"
+        ? "http://" + window.location.hostname + ":3000"
+        : window.location.hostname;
+
     this.analyticId = this.$route.query.analytic;
-    this.getProbeInfo(this.$route.query.probe);
-    this.getAnalyticFriendly();
+    this.getProbeInfo(this.$route.query.probe, baseUrl);
+    this.getAnalyticFriendly(baseUrl);
   }
 };
 </script>

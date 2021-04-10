@@ -1,12 +1,8 @@
 FROM node:lts-alpine
-ARG BRANCH=master
-ARG BUILD_DATE=unknown
-ARG COMMIT=unknown
-ARG COMMIT_DATE=unknown
-ARG VERSION=unknown
 
 # Including tini instead of doing --init because who remebers that
-RUN apk add --no-cache tini ffmpeg perl make python3 git gcc
+RUN apk add --no-cache tini ffmpeg perl make
+RUN npm install -g sequelize-cli
 # Tini is now available at /sbin/tini
 ENTRYPOINT ["/sbin/tini", "--"]
 
@@ -20,20 +16,13 @@ COPY . .
 WORKDIR /usr/src/app
 
 RUN cd tmp \
+    && npm config set proxy ${http_proxy} \
+    && npm config set https-proxy ${https_proxy} \
     && npm ci \
     && npm run build \
     && cd - \
-    && cp -Rp tmp/server/* . \
+    && cp -Rp tmp/server/* tmp/server/.sequelizerc . \
     && rm -rf tmp
 
-LABEL vendor="medifor" \
-    name="medifor-ui" \
-    build-date=$BUILD_DATE \
-    vcs-ref=$COMMIT \
-    version=$VERSION \
-    branch=$BRANCH \
-    vsc-ref-date=$COMMIT_DATE
-
 EXPOSE 3000
-ENV NODE_ENV production
-CMD [ "node", "server.js" ]
+CMD [ "sh", "-c", "while true; do npx sequelize-cli db:migrate && node server.js; sleep 10; done" ]

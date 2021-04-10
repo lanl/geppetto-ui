@@ -1,220 +1,218 @@
 <template>
-  <div id="gallery-container" class="card" ref="gal">
-    <div class="gallery-header level">
-      <div class="level-left" v-if="!isLoading">
-        <div class="level-item">
-          <button v-if="hasGallery" @click="toggleView">
-            <font-awesome-icon
-              v-if="galleryMode === 'list'"
-              icon="th"
-              title="Toggle View"
-            />
-            <font-awesome-icon
-              v-if="galleryMode === 'grid'"
-              icon="list"
-              title="Toggle View"
-            />
+  <div id="gallery-container" class="card">
+    <header>
+      <div class="toolbar">
+        <div class="buttons has-addons">
+          <button
+            class="button"
+            :class="{
+              'is-primary': galleryMode === 'grid',
+              'is-selected': galleryMode === 'grid'
+            }"
+            title="Grid view"
+            @click="setGalleryMode('grid')"
+          >
+            <span class="icon is-small">
+              <font-awesome-icon icon="th" />
+            </span>
+          </button>
+
+          <button
+            class="button"
+            :class="{
+              'is-primary': galleryMode === 'list',
+              'is-selected': galleryMode === 'list'
+            }"
+            title="List view"
+            @click="setGalleryMode('list')"
+          >
+            <span class="icon is-small">
+              <font-awesome-icon icon="list" />
+            </span>
           </button>
         </div>
 
-        <div v-if="hasGallery" class="level-item selection">
-          <div class="select is-small">
-            <select @change="changeSort($event)" v-model="sortValue">
-              <option value="File:UploadDate.desc">
-                &darr; Date
-              </option>
-              <option value="File:UploadDate.asc">
-                &uarr; Date
-              </option>
-              <option value="score.asc">
-                &darr; Integrity
-              </option>
-              <option value="score.desc">
-                &uarr; Integrity
-              </option>
-            </select>
-          </div>
-        </div>
+        <ScoreSourceSelect />
 
-        <div v-if="hasGallery" class="level-item">
-          <span class="is-size-7">
-            <a :href="galleryProbes" target="_blank" title="Download Gallery">
-              Download ZIP
-            </a></span
+        <Search class="is-flex-grow" />
+
+        <button class="button" @click="selectAllProbes">
+          <span class="icon is-small">
+            <font-awesome-icon icon="check-square" />
+          </span>
+          <span>Select all</span>
+        </button>
+
+        <button class="button" @click="refresh">
+          <span class="icon is-small">
+            <font-awesome-icon icon="sync" />
+          </span>
+          <span>Refresh</span>
+        </button>
+
+        <div class="buttons has-addons">
+          <a
+            class="button"
+            title="Download all"
+            :href="downloadURL"
+            target="_blank"
           >
+            <span class="icon is-small">
+              <font-awesome-icon icon="download" />
+            </span>
+          </a>
+
+          <a
+            class="button"
+            title="Export all as CSV"
+            :href="csvURL"
+            target="_blank"
+          >
+            <span class="icon is-small">
+              <font-awesome-icon icon="file-csv" />
+            </span>
+          </a>
+
+          <a
+            class="button"
+            title="Export all as JSON"
+            :href="jsonURL"
+            target="_blank"
+          >
+            <span class="icon is-small">
+              <font-awesome-icon icon="file-code" />
+            </span>
+          </a>
+        </div>
+
+        <div class="select">
+          <select
+            title="Sort probes by"
+            :value="sort"
+            @change="changeSort($event)"
+          >
+            <option value="File:UploadDate.desc">
+              &darr; Date
+            </option>
+            <option value="File:UploadDate.asc">
+              &uarr; Date
+            </option>
+            <option value="score.asc">
+              &darr; Integrity
+            </option>
+            <option value="score.desc">
+              &uarr; Integrity
+            </option>
+            <option value="File:FileName.desc">
+              &darr; Name
+            </option>
+            <option value="File:FileName.asc">
+              &uarr; Name
+            </option>
+          </select>
         </div>
       </div>
 
-      <div class="level-item">
-        <Spinner v-if="isLoading" />
-      </div>
-    </div>
+      <BulkActions />
+    </header>
+
     <!-- end header -->
 
     <!-- gallery or table-->
-    <div
-      v-if="
-        (hasGallery && groupingOnUserVerified) || (hasGallery && !enableGroups)
-      "
-      class="gallery"
-    >
-      <Gallery :galleryMode="galleryMode" />
-    </div>
-    <div v-else class="empty-gallery">
-      <div>There are no probes to show.</div>
-      <div v-if="externalCallError" class="errorMsg">
-        An error has occurred with a service downstream, please contact your
-        system administrator with this error:
-        <div>
-          <i>{{ externalCallError }}</i>
-        </div>
-      </div>
-      <div v-if="groupingOnUserUnverified" class="errorMsg">
-        User does not have access to provided group, user is unknown or groups
-        are not defined. Please return to
-        <a href="home">home page.</a>
-      </div>
-    </div>
+    <main class="gallery">
+      <Gallery />
+    </main>
 
     <!-- footer probe count -->
     <!-- Check that the 'galleryTotal' has computed before displaying it -->
-
-    <!-- Display gallery if grouping is disabled or ig user has access to group when grouping is enabled -->
-    <div
-      v-if="
-        (hasGallery && groupingOnUserVerified) ||
-          (hasGallery && !enableGroups && typeof galleryTotal === 'number')
-      "
+    <footer
+      v-if="hasGallery && typeof galleryTotal === 'number'"
       class="gallery-footer is-size-7"
     >
       <span class="label-font">Probes</span>
       <span class="has-text-right"> ({{ galleryTotal }})&nbsp;</span>
+    </footer>
+
+    <!-- loading indicator -->
+    <div id="load-indicator" :class="{ active: isLoading }">
+      <div class="centered-message" :class="{ active: isLoading }">
+        Loading<br />
+        <font-awesome-icon icon="spinner" class="fa-pulse" />
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-import { mapActions, mapState, mapGetters } from "vuex";
-import { buildRequest } from "@/helpers/urlBuilder.js";
-import { probeParserMixin } from "../../mixins/probeParserMixin";
-
-import { setPreference } from "@/helpers/userPreferences";
-
+/* parsedProbe is object returned from probeParser Mixin
+it contains a variety of data on the currently selected probe */
+import { saveAs } from "file-saver";
 import Gallery from "./Gallery.vue";
-import Spinner from "./Spinner";
+import { mapActions, mapMutations, mapState, mapGetters } from "vuex";
+import { probeParserMixin } from "../../mixins/probeParserMixin";
+import ScoreSourceSelect from "@/components/common/ScoreSourceSelect.vue";
+import BulkActions from "./BulkActions.vue";
+import Search from "./Search.vue";
+
 export default {
   name: "GalleryContainer",
   mixins: [probeParserMixin],
   components: {
+    BulkActions,
     Gallery,
-    Spinner
-  },
-  data: function() {
-    return {
-      galleryMode: "grid",
-      sortValue: "File:UploadDate.desc"
-    };
+    Search,
+    ScoreSourceSelect
   },
   methods: {
-    ...mapActions(["setSort"]),
+    ...mapMutations([
+      "invalidateProbes",
+      "invalidateTagCounts",
+      "setGalleryMode",
+      "selectAllProbes",
+      "clearSelectedProbes"
+    ]),
+
+    ...mapActions(["setSortField", "setSortDir"]),
+
     changeSort(event) {
-      var [field, direction] = event.target.value.split(".");
-      this.setSort({ field, direction });
-
-      setPreference("column", field);
-      setPreference("direction", direction);
-
-      const { path: currentPath } = this.$route;
-      this.$router.push({ path: currentPath, query: this.queryParameters });
+      var [newField, newDir] = event.target.value.split(".");
+      this.setSortField(newField);
+      this.setSortDir(newDir);
     },
-    toggleView() {
-      this.galleryMode = this.galleryMode === "grid" ? "list" : "grid";
+
+    refresh() {
+      //call both to update gallery
+      this.invalidateProbes();
+      this.invalidateTagCounts();
+      this.clearSelectedProbes();
     },
-    setGalleryTotal(total) {
-      this.galleryTotal = total;
+
+    downloadMedia() {
+      saveAs(this.downloadURL);
     }
   },
   computed: {
     ...mapState({
-      username: state => state.user.name,
-      groups: state => state.user.groups,
-      sortDir: state => state.layout.sortDir,
-      scoreDir: state => state.layout.scoreDir,
-      sortField: state => state.layout.sortField,
-      isLoading: state => state.pipeline.isLoading,
-      enableGroups: state => state.config.enableGroups,
-      fusionModel: state => state.pipeline.fusionModel,
-      galleryTotal: state => state.pipeline.probeTotal,
-      hasGallery: state => state.pipeline.probeTotal > 0,
-      filterLabels: state => state.pipeline.filterLabels,
-      downloadValue: state => state.pipeline.downloadValue,
-      scoreThreshold: state => state.layout.scoreThreshold,
-      allowGroupView: state => state.layout.allowGroupView,
-      queryParameters: state => state.pipeline.queryParameters,
-      externalCallError: state => state.pipeline.externalCallError
+      galleryMode: state => state.layout.galleryMode,
+      galleryTotal: state => state.probes.total,
+      isLoading: state => state.probes.isLoading,
+      probe: state => state.pipeline.probe,
+      probes: state => state.probes.probes,
+      sortField: state => state.filters.sortField,
+      sortDir: state => state.filters.sortDir,
+      hasGallery: state => state.probes.probes.length > 0
     }),
-    ...mapGetters(["baseUri", "queryParameters"]),
-    galleryProbes: function() {
-      const url = this.CSVUrl;
-      return url;
-    },
-    CSVUrl: function() {
-      const BASE_URL = this.baseUri;
-      const queryParameters = { ...this.queryParameters };
-      queryParameters.csv = "yes";
-      return buildRequest(BASE_URL, "probes", queryParameters);
-    },
-    home: function() {
-      return window.location.origin;
-    },
-    /* All these condition must be met to show the gallery if grouping is enabled */
-    groupingOnUserVerified: function() {
-      return (
-        this.enableGroups &&
-        this.allowGroupView &&
-        !!this.username &&
-        this.groups.length > 0
-      );
-    },
-    groupingOnUserUnverified: function() {
-      return (
-        (this.enableGroups && !this.allowGroupView) ||
-        (this.enableGroups && !this.username) ||
-        (this.enableGroups && this.groups.length == 0)
-      );
-    }
-  },
-  /* Need to listen for the mouse entering the gallery to be able to register the hover event for moving thumbnails */
-  mounted() {
-    this.$refs.gal.addEventListener("onmouseenter", () => {});
 
-    const field = this.sortField;
-    const dir = this.sortDir;
-    const direction = dir == 1 ? "asc" : "desc";
-    this.sortValue = `${field}.${direction}`;
+    ...mapGetters(["baseUri", "downloadURL", "csvURL", "jsonURL"]),
+
+    sort() {
+      return [this.sortField, this.sortDir < 0 ? "desc" : "asc"].join(".");
+    }
   }
 };
 </script>
 
 <style lang="scss" scoped>
-button {
-  margin-left: 2px;
-  margin-top: 2px;
-  padding: 6px 4px;
-  border: none;
-  border-radius: 3px;
-  font-size: 1rem;
-  color: #aaa;
-  background-color: transparent;
-  transition-duration: 0.4s;
-}
-
-button:hover {
-  color: hsl(217, 71%, 53%);
-  background-color: #eeeeee;
-  cursor: pointer;
-}
-
 #gallery-container {
   position: relative;
   height: 100%;
@@ -223,19 +221,8 @@ button:hover {
   overflow-x: hidden;
   padding: 0;
   margin: 0;
-  background-color: #ddd;
-}
-
-.gallery-header {
-  background-color: white;
-  // height: 40px;
-  margin-bottom: 4px !important;
-  padding: 4px 4px 0 4px;
-  background-image: linear-gradient(white, #ddd);
-}
-
-.column {
-  padding: 3px;
+  display: flex;
+  flex-direction: column;
 }
 
 .label-font {
@@ -243,16 +230,13 @@ button:hover {
 }
 
 .gallery {
-  width: calc(100% - 6px);
-  height: calc(100% - 65px); // 86px
-  max-height: calc(100% - 65px);
+  flex: auto;
   margin: 3px;
+  overflow-y: scroll;
   position: relative;
 }
 
 .gallery-footer {
-  height: 25px;
-  width: 100%;
   text-align: center;
   background-image: linear-gradient(to top, white, #d0d0d0);
 }
@@ -268,19 +252,25 @@ button:hover {
   z-index: 999999;
   transition: 0.5s;
 }
-
-.empty-gallery {
-  text-align: center;
-  padding-top: 20vh;
-  font-size: 1.125rem;
-  font-weight: 700;
+#load-indicator.active {
+  background: rgba(0, 0, 0, 0.5);
 }
-
-.errorMsg {
-  font-size: 0.9rem;
-  width: 50%;
+.centered-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   text-align: center;
-  margin: auto;
-  color: #cc0033;
+  font-size: 1.5em;
+  color: white;
+  font-weight: 900;
+  -webkit-text-fill-color: white;
+  -webkit-text-stroke-color: black;
+  -webkit-text-stroke-width: 1px;
+  opacity: 0;
+  transition: 0.5s;
+}
+.centered-message.active {
+  opacity: 1;
 }
 </style>

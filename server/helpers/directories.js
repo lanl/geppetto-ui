@@ -6,33 +6,31 @@ const applicationRoot = path.dirname(process.mainModule.filename);
 
 const containerRoot = config.get("CONTAINER_ROOT");
 
-/* WORKING_DIR does not exist in config file. WORKING_DIR is used for development.
+/* WORKING_DIR does not exist in config file
  * Will pull from nodemon.json when building from source
- * WORKING_DIR will be set to the same as CONTAINER_ROOT when missing from config
- * such as when running in docker.
- */
-let workingRoot;
-if (config.has("WORKING_DIR")) {
-  workingRoot = config.get("WORKING_DIR");
-} else {
-  workingRoot = containerRoot;
-}
+ * WORKING_DIR is same as CONTAINER_ROOT when building from container
+ * If building from container then CONTAINER_ROOT and WORKING_DIR are env variables from docker-compose */
+
+const workingRoot = config.get("WORKING_DIR");
 
 const directories = {
   thumbnails: "input/thumbnails"
 };
 
 const applicationDirectories = {
-  inboxPath: path.join(workingRoot, "inbox"),
+  inboxPath: path.join("/tmp", "inbox"),
+
   applicationOutputPath: path.join(workingRoot, "output"),
   applicationInputPath: path.join(workingRoot, "input"),
-  thumbnailPath: path.join(workingRoot, directories.thumbnails),
-  transcodedVideoPath: path.join(workingRoot, "input/transcoded")
+
+  thumbnailPath: path.join(workingRoot, "input", "thumbnails"),
+  videoSourcesPath: path.join(workingRoot, "input"),
+  transcodedVideoPath: path.join(workingRoot, "input", "transcoded")
 };
 
 const containerDirectories = {
-  containerOutputPath: path.join(containerRoot, "output"),
-  containerInputPath: path.join(containerRoot, "input")
+  containerOutputPath: path.posix.join(containerRoot, "output"),
+  containerInputPath: path.posix.join(containerRoot, "input")
 };
 
 Object.keys(applicationDirectories).forEach(directory => {

@@ -19,15 +19,8 @@ exports.updateDetectionTags = (detectionID, replace, tags, deleteTags) => {
   });
 };
 
-exports.getDetectionTagInfo = (detectionTagRequest, userKey, groupKey) => {
-  const request = {
-    require_tags: detectionTagRequest,
-    skip_prefixes: []
-  };
-
-  /* Pipeline will skip and not return any tags prefixed with userKeuy or groupKey */
-  if (userKey) request.skip_prefixes.push(userKey);
-  if (groupKey) request.skip_prefixes.push(groupKey);
+exports.getDetectionTagInfo = () => {
+  const request = {};
 
   return new Promise((resolve, reject) => {
     workflowClient.services.GetDetectionTagInfo(request, (err, response) => {
@@ -67,4 +60,4 @@ const init = (proto, packageName, service) => {
   };
 };
 
-const workflowClient = init("pipeline.proto", "workflowproto", "Pipeline");
+const workflowClient = init("medifor/v1/pipeline.proto", "mediforproto", "Pipeline");

@@ -1,53 +1,35 @@
 <template>
   <section
-    class="analytic_container"
+    class="analytic_card"
     :class="{
-      'analytic_container--highlight': friendlyData.id == 'groundtruth',
-      'analytic_container--selected': isSelected,
-      'analytic_container--fuser': isFuser
+      'analytic_card-highlight has-border-primary':
+        friendlyData.id == 'groundtruth' || this.isFusionDetector,
+      'analytic_card--selected': isSelected
     }"
+    @click="selectDetector"
   >
-    <div v-if="isFuser" class="analytic_card__pager">
-      <button @click="previous" class="btn icon" :disabled="!usePager">
-        <font-awesome-icon
-          icon="caret-left"
-          class="fas fa-lg has-text-grey-dark"
+    <DetectorMask :maskData="maskData" />
+    <div class="analytic_card__body">
+      <DetectorHeader :headerData="headerData" />
+      <div class="analytic_card__details">
+        <Status
+          :integrity="score"
+          :manipulationFacets="manipulationFacets"
+          :status="detectorStatus"
         />
-      </button>
-      <span class="has-text-black-ter">Fusion Model</span>
-      <button @click="next" class="btn icon" :disabled="!usePager">
-        <font-awesome-icon
-          icon="caret-right"
-          class="fas fa-lg has-text-grey-dark"
+        <SupplementalIndicator
+          v-if="supplementalData"
+          :probeId="probe.id"
+          :analyticId="data.analytic_id"
         />
-      </button>
-    </div>
-
-    <section class="analytic_card" @click="selectDetector">
-      <DetectorMask :maskData="maskData" />
-      <div class="analytic_card__body">
-        <DetectorHeader :headerData="headerData" />
-        <div class="analytic_card__details">
-          <Status
-            :integrity="score"
-            :manipulationFacets="manipulationFacets"
-            :status="detectorStatus"
-          />
-          <SupplementalIndicator
-            v-if="supplementalData"
-            :probeId="probe.id"
-            :analyticId="data.analytic_id"
-          />
-          <Expansion :expansionData="expansionData" />
-        </div>
+        <Expansion :expansionData="expansionData" />
       </div>
-    </section>
+    </div>
   </section>
 </template>
 
 <script>
 import get from "lodash.get";
-import isempty from "lodash.isempty";
 
 import { mapMutations, mapState } from "vuex";
 
@@ -70,11 +52,7 @@ export default {
   props: {
     data: {},
     detectionType: String,
-    friendlyData: {},
-    isFuser: Boolean,
-    next: Function,
-    previous: Function,
-    usePager: Boolean
+    friendlyData: {}
   },
   components: {
     //FrameTimeline,
@@ -153,13 +131,9 @@ export default {
     },
     explanation: function() {
       const detector = this.getDetector;
-      if (this.detectorStatus.failed) {
-        return detector.status.message;
-      } else {
-        if (this.isImage) return detector.img_manip.explanation;
-        else if (this.isVideo) return detector.vid_manip.explanation;
-        return "Unsupported";
-      }
+      if (this.isImage) return detector.img_manip.explanation;
+      else if (this.isVideo) return detector.vid_manip.explanation;
+      return "Unsupported";
     },
     url: function() {
       var url = this.$store.getters.baseUri;
@@ -207,7 +181,7 @@ export default {
     manipulationFacets: function() {
       const detector = this.getDetector;
       const target = detector.vid_manip || detector.img_manip;
-      return isempty(target.facets) ? {} : target.facets;
+      return target.facets !== {} ? target.facets : {};
     },
     detectionOptedOutScore: function() {
       const detector = this.getDetector;
@@ -297,26 +271,30 @@ export default {
 </script>
 
 <style scoped>
-.analytic_container {
-  margin: 4px 8px;
-  border: solid 2px #bbb;
-  border-radius: 3px;
+.analytic_card {
+  box-sizing: border-box;
   background: hsl(0, 0%, 92%);
+
+  border: solid 2px #bbb;
+  display: flex;
+  margin-block: 6px;
+  margin-inline: 8px;
+  padding: 12px;
+  border-radius: 3px;
+}
+
+.analytic_card-highlight {
   color: black;
 }
 
-.analytic_container--fuser,
-.analytic_container--highlight {
-  border-color: hsl(204, 86%, 53%);
+.analytic_card--selected {
+  border-width: 4px;
+  padding: 10px;
+  background: #fff;
 }
 
-.analytic_container--selected.analytic_card-highlight {
+.analytic_card--selected.analytic_card-highlight {
   background: hsl(203, 57%, 95%);
-}
-
-.analytic_card {
-  box-sizing: border-box;
-  display: flex;
 }
 
 .analytic_card__body {
@@ -327,47 +305,5 @@ export default {
 .analytic_card__details {
   color: #333;
   word-break: break-word;
-}
-
-.analytic_card__pager {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: hsla(204, 86%, 53%, 0.61);
-  border-bottom: solid 1px hsla(0, 0%, 100%, 0.685);
-}
-
-/* Active card base */
-.analytic_container {
-}
-
-.analytic_container > .analytic_card,
-.analytic_container > .analytic_card__pager {
-  padding: 8px;
-}
-
-.analytic_container > .analytic_card__pager {
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-
-/* Active card changes */
-.analytic_container--selected {
-  border-width: 4px;
-  background: #fff;
-}
-
-.analytic_container--selected > .analytic_card,
-.analytic_container--selected > .analytic_card__pager {
-  padding: 6px;
-}
-
-.analytic_container--selected > .analytic_card__pager + .analytic_card {
-  padding-top: 8px;
-}
-
-.analytic_container--selected > .analytic_card__pager {
-  padding-top: 2px;
-  padding-bottom: 4px;
 }
 </style>

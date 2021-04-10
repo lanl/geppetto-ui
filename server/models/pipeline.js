@@ -1,109 +1,38 @@
 const path = require("path");
 const fs = require("fs");
-const NodeCache = require("node-cache");
+const util = require("util");
 
 const protoLoader = require("@grpc/proto-loader");
 const grpc = require("@grpc/grpc-js");
 const config = require("config");
-const { protosRoot } = require("../helpers/directories");
+const {
+  containerInputPath,
+  containerOutputPath,
+  applicationInputPath,
+  protosRoot
+} = require("../helpers/directories");
 
-const cache = new NodeCache();
-const CACHE_DURATION = config.get("CACHE_TTL_SECONDS");
-const CACHE_KEY = "analyticList";
+const {
+  video: videoAnalytics,
+  image: imageAnalytics,
+  fusion: fusers
+} = require("./analyticsList");
 
-/* The pipeline returns integers for these values */
-const media_type = {
-  IMAGE: 0,
-  VIDEO: 1,
-  FUSION_IMAGE: 2,
-  FUSION_VIDEO: 3
-};
-
-const fusersFor = (type, fusers) =>
+const fusersFor = type =>
   fusers.filter(fuser => fuser.handles.includes(type)).map(fuser => fuser.id);
 
-/* Extracts the image & video analytics and formats them correctly */
-const filterAnalytics = (analyticsList, type) => {
-  return analyticsList
-    .filter(container => container.media[0] == type)
-    .map(container => {
-      return {
-        id: container.id,
-        description: container.description,
-        name: container.name
-      };
-    });
-};
-
-/* Extracts the fusers and formats them correctly */
-const filterFusers = analyticsList => {
-  return analyticsList
-    .filter(
-      container =>
-        container.media.includes(media_type.FUSION_IMAGE) ||
-        container.media.includes(media_type.FUSION_VIDEO)
-    )
-    .map(container => {
-      return {
-        id: container.id,
-        description: container.description,
-        name: container.name,
-        handles: container.media.map(type => {
-          return type == media_type.FUSION_IMAGE ? "image" : "video";
-        })
-      };
-    });
-};
-
-/* Fetches the list from the pipeline and formats it correct for the UI */
-const fetchAnalyticsFromPipeline = (analyticsListRequest = {}) => {
-  return new Promise((resolve, reject) => {
-    // Returns a undefined if not found or expired.
-    let fetchedAnalyticsList = cache.get(CACHE_KEY);
-    if (!fetchedAnalyticsList) {
-      workflowClient.getAnalyticMeta(analyticsListRequest, (err, response) => {
-        if (err) reject(err);
-        else {
-          const formattedAnalytics = {
-            imageAnalytics: filterAnalytics(
-              response.analytics,
-              media_type.IMAGE
-            ),
-            videoAnalytics: filterAnalytics(
-              response.analytics,
-              media_type.VIDEO
-            ),
-            fusers: filterFusers(response.analytics)
-          };
-          fetchedAnalyticsList = { ...formattedAnalytics };
-          cache.set(CACHE_KEY, fetchedAnalyticsList, CACHE_DURATION);
-          resolve(fetchedAnalyticsList);
-        }
-      });
-    } else {
-      resolve(fetchedAnalyticsList);
-    }
-  }).catch(error => {
-    console.log(
-      `Error retrieving analytics metadata from analytic workflow. Check that analytic workflow is running.\nTerminating process. Failed with code ${error} `
-    );
-    throw error;
-  });
-};
-
-const detect = request => {
+function detect(request) {
   return new Promise((resolve, reject) => {
     workflowClient.Detect(request, (err, response) => {
       if (err) reject(err);
       resolve(response);
     });
   });
-};
+}
 
-exports.detectImage = async detectionRequest => {
-  const { imageAnalytics, fusers } = await fetchAnalyticsFromPipeline();
+exports.detectImage = detectionRequest => {
   detectionRequest.analytic_id = imageAnalytics.map(a => a.id);
-  detectionRequest.fuser_id = fusersFor("image", fusers);
+  detectionRequest.fuser_id = fusersFor("image");
 
   return detect(detectionRequest)
     .then(response => {
@@ -114,10 +43,9 @@ exports.detectImage = async detectionRequest => {
     });
 };
 
-exports.detectVideo = async detectionRequest => {
-  const { videoAnalytics, fusers } = await fetchAnalyticsFromPipeline();
+exports.detectVideo = detectionRequest => {
   detectionRequest.analytic_id = videoAnalytics.map(a => a.id);
-  detectionRequest.fuser_id = fusersFor("video", fusers);
+  detectionRequest.fuser_id = fusersFor("video");
 
   return detect(detectionRequest)
     .then(response => {
@@ -155,28 +83,63 @@ exports.deleteDetection = deleteDetectionRequest => {
   });
 };
 
-exports.getAnalyticsList = async () => {
-  const analyticsList = await fetchAnalyticsFromPipeline();
-  return analyticsList;
+exports.updateDetectionMetadata = (detectionId, metadata) => {
+  const request = {
+    detection_id: detectionId,
+    metadata
+  };
+
+  return new Promise((resolve, reject) => {
+    workflowClient.UpdateDetectionMetadata(request, (error, response) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(response);
+      }
+    });
+  });
 };
 
 const init = () => {
-  const pipelineDefinition = protoLoader.loadSync("pipeline.proto", {
+  const pipelineDefinition = protoLoader.loadSync("medifor/v1/pipeline.proto", {
     keepCase: true,
     defaults: true,
     includeDirs: [protosRoot]
   });
 
-  const workflowProto = grpc.loadPackageDefinition(pipelineDefinition)
-    .workflowproto;
+  const mediforProto = grpc.loadPackageDefinition(pipelineDefinition).mediforproto;
 
   const host = config.get("WORKFLOW_HOST");
   const port = config.get("WORKFLOW_PORT");
 
-  return new workflowProto.Pipeline(
+  return new mediforProto.Pipeline(
     `${host}:${port}`,
     grpc.credentials.createInsecure()
   );
 };
 
 const workflowClient = init();
+
+exports.listDetections = util.promisify(
+  workflowClient.ListDetections.bind(workflowClient)
+);
+
+exports.getAnalyticStats = util.promisify(
+  workflowClient.GetAnalyticStats.bind(workflowClient)
+);
+
+exports.getHistogram = util.promisify(
+  workflowClient.GetHistogram.bind(workflowClient)
+);
+
+exports.deleteFailedAnalytics = util.promisify(
+  workflowClient.DeleteFailedAnalytics.bind(workflowClient)
+);
+
+exports.getAnalyticsWithScores = util.promisify(
+  workflowClient.GetAnalyticsWithScores.bind(workflowClient)
+);
+
+exports.fuseAllIDs = util.promisify(
+  workflowClient.FuseAllIDs.bind(workflowClient)
+);

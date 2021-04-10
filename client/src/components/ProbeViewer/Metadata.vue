@@ -1,6 +1,6 @@
 <template>
   <div class="collapsible" v-if="meta != undefined">
-    <div class="header" @click="metaOpen = !metaOpen">
+    <div class="header has-background-primary" @click="metaOpen = !metaOpen">
       <h1>Metadata</h1>
       <font-awesome-icon :icon="plusMinusMeta" />
     </div>
@@ -52,9 +52,9 @@ export default {
       }
       return result;
     },
-
     plusMinusMeta: function() {
-      return !this.metaOpen ? "plus-circle" : "minus-circle";
+      if (!this.metaOpen) return "plus-circle";
+      return "minus-circle";
     }
   }
 };
@@ -71,7 +71,6 @@ export default {
 
 .header {
   height: 40px;
-  background: $info;
   color: white;
   display: flex;
   justify-content: space-between;
@@ -80,10 +79,6 @@ export default {
   font-size: 1.05em;
   transition: 0.3s;
   border-bottom: 1px solid #ccc;
-}
-
-.header:hover {
-  background: $link;
 }
 
 .header h1 {

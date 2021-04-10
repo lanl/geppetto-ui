@@ -1,55 +1,58 @@
 <template>
   <div class="card" @click="selectCurrentProbe">
-    <router-link
-      :to="{
-        name: 'probe',
-        params: { id: parsedProbe.id },
-        query: this.queryParameters
-      }"
-    >
-      <div class="card-top">
-        <div class="columns">
-          <div class="column is-narrow">
-            <div class="img-container">
-              <div class="frame">
-                <img
-                  :src="parsedProbe.thumbnail"
-                  :alt="parsedProbe.id"
-                  :title="parsedProbe.id"
-                />
-              </div>
+    <div class="card-top">
+      <div class="columns">
+        <div class="column is-narrow is-vcentered">
+          <input
+            type="checkbox"
+            :checked="selected"
+            @change="$emit('update:selected', $event.target.checked)"
+            @click.stop
+          />
+        </div>
+        <div class="column is-narrow">
+          <div class="img-container">
+            <div class="frame">
+              <img
+                :src="parsedProbe.thumbnail"
+                :alt="parsedProbe.id"
+                :title="parsedProbe.id"
+              />
             </div>
-          </div>
-          <div class="column">
-            <div><b>Analytic Completion:</b> {{ getAnalytics }}</div>
-            <div v-if="parsedProbe.hasFused">
-              <b>Fusion Score:</b> {{ parsedProbe.galleryFusedScore }}
-            </div>
-            <div><b>File Name:</b> {{ parsedProbe.name }}</div>
-            <div>
-              <b>MD5:</b>
-              <a
-                :href="'https://medifor.rankone.io/md5_info/' + parsedProbe.md5"
-                target="_blank"
-              >
-                {{ parsedProbe.id }}
-              </a>
-            </div>
-
-            <!--<span>score or maybe X/Y analytics complete</span>-->
           </div>
         </div>
+        <div class="column">
+          <div><b>Analytic Completion:</b> {{ getAnalytics }}</div>
+          <div v-if="parsedProbe.hasFused">
+            <b>Fusion Score:</b> {{ score | score }}
+          </div>
+          <div><b>File Name:</b> {{ parsedProbe.name }}</div>
+          <div>
+            <b>MD5:</b>
+            <a
+              :href="'https://medifor.rankone.io/md5_info/' + parsedProbe.id"
+              target="_blank"
+            >
+              {{ parsedProbe.id }}
+            </a>
+          </div>
+          <div v-if="duration"><b>Duration:</b> {{ duration | duration }}</div>
+
+          <!--<span>score or maybe X/Y analytics complete</span>-->
+        </div>
       </div>
-    </router-link>
+    </div>
   </div>
 </template>
 
 <script>
+import duration from "@/filters/duration";
+import score from "@/filters/score";
+
 /* parsedProbe is object returned from probeParser Mixin
 it contains a variety of data on the currently selected probe */
-
-import { mapActions, mapGetters } from "vuex";
 import { probeParserMixin } from "../../mixins/probeParserMixin";
+
 export default {
   name: "ContentCard",
   mixins: [probeParserMixin],
@@ -57,21 +60,32 @@ export default {
     return {};
   },
   props: {
-    probe: {}
+    probe: Object,
+    selected: Boolean
   },
+
+  filters: {
+    duration,
+    score
+  },
+
   methods: {
-    ...mapActions(["selectProbe"]),
     //switches the currently selected probe
     selectCurrentProbe() {
-      var payload = {};
-      payload.probe = this.probe;
-      this.selectProbe(payload);
+      this.$router.push(`/probes/${this.probe.id}`);
     }
   },
   computed: {
-    ...mapGetters(["queryParamets"]),
     getAnalytics: function() {
       return this.probe.analytics_finished + "/" + this.probe.analytics_total;
+    },
+
+    score() {
+      return this.probe.fused_score;
+    },
+
+    duration() {
+      return this.probe.meta["QuickTime:Duration"];
     }
   }
 };
@@ -86,6 +100,11 @@ export default {
 .columns {
   width: 100%;
 }
+
+.column.is-vcentered {
+  align-self: center;
+}
+
 .card {
   width: 100%;
   padding: 6px;

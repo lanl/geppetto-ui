@@ -1,6 +1,11 @@
 <template>
   <!-- outer holder -->
-  <div class="video-holder" ref="videoHolder">
+  <div
+    class="video-holder"
+    ref="videoHolder"
+    @keydown.arrow-left="seekBackward"
+    @keydown.arrow-right="seekForward"
+  >
     <!-- Video stage (container for transforms) -->
     <div
       id="video-container"
@@ -25,19 +30,31 @@
       </div>
 
       <!-- actual video player -->
-      <video
-        class="video-player"
-        ref="videoPlayer"
-        :muted="isMuted"
-        :src="probeInfo.source"
-        @timeupdate="timeUpdate"
-        @progress="calculateBufferRanges()"
-        @waiting="unhideSpinner()"
-        @canplay="hideSpinner()"
-        @ended="onVideoEnded()"
-      >
-        <p>Your Browser Doesn't support HTML5 Video</p>
-      </video>
+      <div ref="videoContainer">
+        <video
+          class="video-player"
+          ref="videoPlayer"
+          :muted="isMuted"
+          :src="probeInfo.source"
+          @error="$emit('error', $event.target.error)"
+          @loadedmetadata="onLoadedMetadata"
+          @durationchange="duration = $event.target.duration"
+          @ratechange="playbackRate = $event.target.playbackRate"
+          @timeupdate="timeUpdate"
+          @volumechange="volume = $event.target.volume"
+          @progress="calculateBufferRanges()"
+          @waiting="unhideSpinner()"
+          @canplay="hideSpinner()"
+        >
+          <p>Your Browser Doesn't support HTML5 Video</p>
+        </video>
+
+        <VideoAnnotationOverlay
+          :time="time"
+          :videoWidth="videoWidth"
+          :videoHeight="videoHeight"
+        />
+      </div>
     </div>
 
     <!-- video controls -->
@@ -47,28 +64,25 @@
         fixed: $store.getters.selectedAnalytic !== ''
       }"
     >
-      <div class="has-text-centered">
-        <!-- Play Button -->
-        <button class="button" v-if="!videoPlaying" @click="togglePlayPause">
-          <font-awesome-icon icon="play-circle" />
-        </button>
+      <button class="button" @click="togglePlayPause">
+        <span class="icon is-small">
+          <font-awesome-icon :icon="videoPlaying ? 'pause' : 'play'" />
+        </span>
+      </button>
 
-        <button class="button" v-else @click="togglePlayPause">
-          <font-awesome-icon icon="pause-circle" />
-        </button>
-      </div>
+      <button class="button" @click="seekBackward">
+        <span class="icon is-small">
+          <font-awesome-icon icon="backward" />
+        </span>
+      </button>
 
-      <!-- Audio mute -->
-      <div class="has-text-centered">
-        <button class="button" v-if="isMuted" @click="isMuted = !isMuted">
-          <font-awesome-icon icon="volume-mute" />
-        </button>
-        <button class="button" v-if="!isMuted" @click="isMuted = !isMuted">
-          <font-awesome-icon icon="volume-up" />
-        </button>
-      </div>
+      <button class="button" @click="seekForward">
+        <span class="icon is-small">
+          <font-awesome-icon icon="forward" />
+        </span>
+      </button>
 
-      <div>
+      <div style="flex: auto">
         <!-- Scrubber Bar -->
         <div
           ref="progressbar"
@@ -77,10 +91,10 @@
           @mousemove="showHoverTime($event)"
         >
           <div class="controls-progress-time" v-if="timeElapsed">
-            {{ timeElapsed }}
+            {{ timeElapsed | duration(3) }}
           </div>
           <span
-            class="controls-progress-back"
+            class="controls-progress-back has-background-primary"
             :class="{ started: percentPlayed !== 0 }"
             :style="{ width: percentPlayed }"
           ></span>
@@ -95,47 +109,118 @@
         </div>
 
         <!-- Manipulated Range Markers -->
-        <div v-if="getRanges.length > 0" class="controls-progress-markers">
-          <FrameTimeline :frameData="getRanges" :useColorMap="true" />
+        <div
+          v-if="getRanges.length > 0"
+          class="controls-progress-markers"
+          @click="skipToPosition($event)"
+        >
+          <FrameTimeline :frameData="getRanges" />
         </div>
       </div>
 
       <!-- Time Remaining -->
-      <div class="controls-time">{{ timeRem }}</div>
+      <div class="controls-time">{{ timeRemaining | duration }}</div>
 
-      <!-- Playback Settings -->
-      <PlaybackSpeedController v-on:updatePlaybackSpeed="setPlaybackRate" />
+      <VolumeControl
+        :muted.sync="isMuted"
+        :volume="volume"
+        @update:volume="$refs.videoPlayer.volume = $event"
+      />
 
-      <!-- Fullscreen -->
-      <div>
-        <button v-if="!isFullScreen" class="button" @click="enterFullscreen">
+      <PlaybackRateControl
+        :playbackRate="playbackRate"
+        @update:playbackRate="$refs.videoPlayer.playbackRate = $event"
+      />
+
+      <button class="button" @click="addBookmark">
+        <span class="icon is-small">
+          <font-awesome-icon icon="bookmark" />
+        </span>
+      </button>
+
+      <button class="button" @click="captureFrame">
+        <span class="icon is-small">
+          <font-awesome-icon icon="camera" />
+        </span>
+      </button>
+
+      <button class="button" @click="toggleFullscreen">
+        <span class="icon is-small">
           <font-awesome-icon icon="expand" />
-        </button>
-        <button v-if="isFullScreen" class="button" @click="exitFullscreen">
-          <font-awesome-icon icon="compress" />
-        </button>
+        </span>
+      </button>
+    </div>
+
+    <div v-if="addingBookmark" class="modal is-active">
+      <div class="modal-background" @click="cancelAddBookmark"></div>
+      <div class="modal-card">
+        <header class="modal-card-head">
+          <p class="modal-card-title">Add Bookmark</p>
+          <button class="delete" @click="cancelAddBookmark"></button>
+        </header>
+        <section class="modal-card-body">
+          <div class="field">
+            <div class="control">
+              <textarea
+                class="textarea"
+                placeholder="Add a comment..."
+                v-model="addingBookmark.comment"
+              ></textarea>
+            </div>
+          </div>
+        </section>
+        <footer class="modal-card-foot">
+          <div class="field">
+            <div class="control">
+              <button class="button is-primary" @click="saveAddBookmark">
+                Save changes
+              </button>
+              <button class="button" @click="cancelAddBookmark">Cancel</button>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   </div>
 </template>
 
 <script>
+import { mapActions, mapState } from "vuex";
+
+import { saveAs } from "file-saver";
 import panzoom from "panzoom";
+
+import duration from "@/filters/duration";
 import FrameTimeline from "../../common/FrameTimeline";
-import PlaybackSpeedController from "./PlaybackSpeedController";
+import PlaybackRateControl from "./PlaybackRateControl.vue";
+import VideoAnnotationOverlay from "./VideoAnnotationOverlay.vue";
+import VolumeControl from "./VolumeControl.vue";
 
 export default {
   name: "VideoPlayer",
 
   components: {
     FrameTimeline,
-    PlaybackSpeedController
+    PlaybackRateControl,
+    VideoAnnotationOverlay,
+    VolumeControl
+  },
+
+  filters: {
+    duration
   },
 
   props: { probeInfo: Object },
 
   data: function() {
     return {
+      addingBookmark: null,
+      duration: 0,
+      playbackRate: 1,
+      time: 0,
+      videoWidth: 0,
+      videoHeight: 0,
+      volume: 0,
       bufferRanges: [],
       isMounted: false,
       isMuted: false,
@@ -144,7 +229,6 @@ export default {
       ranges: [],
       showSpinner: false,
       timeElapsed: null,
-      timeRem: "00:00",
       totalFrames: 0,
       videoPlaying: false,
       isFullScreen: false
@@ -152,6 +236,39 @@ export default {
   },
 
   computed: {
+    ...mapState({
+      probe: state => state.pipeline.probe
+    }),
+
+    frameRate() {
+      return (
+        this.probe &&
+        this.probe.meta &&
+        this.probe.meta["QuickTime:VideoFrameRate"]
+      );
+    },
+
+    fileNameStem() {
+      const fileName =
+        this.probe && this.probe.meta && this.probe.meta["File:FileName"];
+
+      if (!fileName) {
+        return "";
+      }
+
+      const index = fileName.lastIndexOf(".");
+
+      if (index < 0) {
+        return fileName;
+      }
+
+      return fileName.substring(0, index);
+    },
+
+    timeRemaining() {
+      return this.duration - this.time;
+    },
+
     getRanges: function() {
       var o = [];
       var analytic = {};
@@ -169,6 +286,7 @@ export default {
         return {};
       for (const range of analytic.detection.vid_manip.localization
         .frame_detection) {
+        //console.log("range", range.range.start, range.range.end, range.score);
         o.push(range);
       }
 
@@ -196,15 +314,91 @@ export default {
     self.$refs.videoHolder.addEventListener("fullscreenchange", () => {
       self.isFullScreen = !self.isFullScreen;
     });
+
+    this.playbackRate = this.$refs.videoPlayer.playbackRate;
+    this.volume = this.$refs.videoPlayer.volume;
+
+    this.unsubscribe = this.$store.subscribeAction(action => {
+      if (action.type === "seek") {
+        this.$refs.videoPlayer.currentTime = action.payload;
+      }
+    });
+
+    if (this.$route.query.time) {
+      this.$refs.videoPlayer.currentTime = Number(this.$route.query.time);
+    }
   },
 
   updated() {
     this.videoPlaying = !this.$refs.videoPlayer.paused;
   },
 
+  beforeDestroy() {
+    this.unsubscribe();
+  },
+
   methods: {
+    ...mapActions(["createBookmark"]),
+
+    seekBackward() {
+      if (!this.frameRate) {
+        return;
+      }
+
+      this.$refs.videoPlayer.currentTime -= 1 / this.frameRate;
+    },
+
+    seekForward() {
+      if (!this.frameRate) {
+        return;
+      }
+
+      this.$refs.videoPlayer.currentTime += 1 / this.frameRate;
+    },
+
+    addBookmark() {
+      this.addingBookmark = {
+        probeId: this.probe.id,
+        time: this.$refs.videoPlayer.currentTime,
+        comment: ""
+      };
+    },
+
+    saveAddBookmark() {
+      this.createBookmark(this.addingBookmark).then(() => {
+        this.addingBookmark = null;
+      });
+    },
+
+    cancelAddBookmark() {
+      this.addingBookmark = null;
+    },
+
+    captureFrame() {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const fileNameStem = this.fileNameStem || this.probe.id;
+      const time = duration(this.time, 3);
+
+      canvas.width = this.videoWidth;
+      canvas.height = this.videoHeight;
+      ctx.drawImage(this.$refs.videoPlayer, 0, 0);
+
+      canvas.toBlob(blob => {
+        saveAs(blob, `${fileNameStem}-${time}.png`);
+      });
+    },
+
+    toggleFullscreen() {
+      if (!this.isFullScreen) {
+        this.enterFullscreen();
+      } else {
+        this.exitFullscreen();
+      }
+    },
+
     resetPanZoom() {
-      this.panZoomHandler = panzoom(this.$refs.videoPlayer, {
+      this.panZoomHandler = panzoom(this.$refs.videoContainer, {
         maxZoom: 4,
         minZoom: 1,
         smoothScroll: false
@@ -213,11 +407,14 @@ export default {
     },
 
     getFramesToPercent(frame) {
+      // update frames
       if (this.$store.getters.meta == null) return "0%";
+
       this.totalFrames = this.$store.getters.meta["File:Frames"];
       return (frame / this.totalFrames) * 100 + "%";
     },
     computeMarkerStyle(start, end, score) {
+      //alert(start + " " + end);
       return {
         left: this.getFramesToPercent(start),
         width: this.getFramesToPercent(end - start),
@@ -225,27 +422,8 @@ export default {
       };
     },
 
-    secondsToHumanReadable(num) {
-      let hours = Math.floor(num / 3600);
-      let minutes = Math.floor((num % 3600) / 60);
-      let seconds = num % 60;
-      // Add leading zero if needed
-      hours = hours < 10 ? "0" + hours : hours;
-      minutes = minutes < 10 ? "0" + minutes : minutes;
-      seconds = (seconds < 10 ? "0" + seconds : seconds).toString();
-      if (seconds.length > 4) seconds = seconds.substring(0, 5);
-      // If hours > 0, return string with hours prepended
-      if (hours > 0) {
-        return hours + ":" + minutes + ":" + seconds;
-      }
-      return minutes + ":" + seconds;
-    },
-
     percentageOffset(e) {
       return e.offsetX / this.$refs.progressbar.offsetWidth;
-    },
-    setPlaybackRate(speed) {
-      this.$refs.videoPlayer.playbackRate = speed;
     },
 
     currentTime(percentage) {
@@ -258,12 +436,17 @@ export default {
       var percentageOffset = this.percentageOffset(e);
       var timeInSeconds = this.currentTime(percentageOffset);
 
-      if (!isNaN(timeInSeconds))
-        this.timeElapsed = this.secondsToHumanReadable(timeInSeconds);
+      if (!isNaN(timeInSeconds)) {
+        this.timeElapsed = timeInSeconds;
+      }
     },
 
     calculateBufferRanges() {
       this.bufferRanges = [];
+
+      if (!this.$refs.videoPlayer) {
+        return;
+      }
 
       // loop through ranges
       for (let i = 0, l = this.$refs.videoPlayer.buffered.length; i < l; i++) {
@@ -338,25 +521,13 @@ export default {
       );
     },
 
-    remainingTime() {
-      //trick vue into waiting for mounted
-      if (!this.isMounted) return 0;
-      if (
-        this.$refs.videoPlayer == undefined ||
-        this.$refs.videoPlayer.readyState < 2
-      )
-        return 0;
-      return Math.round(
-        this.$refs.videoPlayer.duration - this.$refs.videoPlayer.currentTime
-      );
+    onLoadedMetadata(e) {
+      this.videoWidth = e.target.videoWidth;
+      this.videoHeight = e.target.videoHeight;
     },
 
-    timeRemaining() {
-      return this.secondsToHumanReadable(this.remainingTime());
-    },
-
-    timeUpdate() {
-      this.timeRem = this.timeRemaining();
+    timeUpdate(e) {
+      this.time = e.target.currentTime;
       this.percentPlayed = this.percentagePlayed();
     },
 
@@ -366,10 +537,6 @@ export default {
 
     hideSpinner() {
       this.showSpinner = false;
-    },
-
-    onVideoEnded() {
-      this.$refs.videoPlayer.pause();
     }
   }
 };
@@ -400,33 +567,30 @@ export default {
   max-height: 95vh;
 }
 
-.stage-normal {
-  max-height: 70vh;
-}
-
 .video-controls {
   border: solid 1px silver;
   border-top: none;
   padding: 3px;
-  display: grid;
-  grid-row-gap: 10px;
-  grid-column-gap: 10px;
+  display: flex;
   align-items: center;
-  grid-template-columns: repeat(2, auto) 20fr repeat(3, auto);
+  width: 100%;
 }
 
-.video-controls > div {
-  margin: 0;
-  padding: 0;
+.video-controls > * {
+  margin: 4px;
 }
 
 video {
-  top: 0;
-  left: 0;
-  max-width: 100%;
+  display: block;
   width: 100%;
-  min-height: 50vh;
-  max-height: 95vh;
+}
+
+.video-holder:not(:fullscreen) video {
+  max-height: calc(100vh - 12rem);
+}
+
+.video-holder:fullscreen video {
+  max-height: calc(100vh - 48px);
 }
 
 #video-container {
@@ -546,7 +710,6 @@ video {
   top: 0;
   left: 0;
   width: 0;
-  background-color: #33ccff;
   border-radius: 3px;
   z-index: 9999;
 }
@@ -574,6 +737,7 @@ video {
 }
 
 .controls-progress-markers {
+  cursor: pointer;
   margin-top: 6px;
   height: 20px;
 }

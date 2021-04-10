@@ -1,6 +1,5 @@
 <template>
   <div class="supplemental-container">
-    <Navbar />
     <aside>
       <div class="panel">
         <p
@@ -55,7 +54,6 @@
 
 <script>
 import IntegrityScore from "../common/IntegrityScore";
-import Navbar from "../Navbar";
 import SupplementalCard from "./SupplementalCard";
 import SupplementalMetaCard from "./SupplementalMetaCard";
 import SupplementalProbeViewer from "./SupplementalProbeViewer";
@@ -74,7 +72,6 @@ export default {
   },
   components: {
     IntegrityScore,
-    Navbar,
     SupplementalCard,
     SupplementalMetaCard,
     SupplementalProbeViewer

@@ -12,90 +12,20 @@
     "docker:start": "cd ./pipeline && docker-compose up --remove-orphans -d && cd ..",
     "docker:stop": "cd ./pipeline && docker-compose down && cd .."
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/mediaforensics/medifor-ui.git"
+  "devDependencies": {
+    "husky": "^4.2.3",
+    "lerna": "^3.20.2",
+    "lint-staged": "^10.0.8"
   },
-  "contributors": [
-    "Wes Dingman <wesley.dingman@caci.com>",
-    "Edgardo Vega <edgardo.vega@caci.com"
-  ],
   "husky": {
     "hooks": {
-      "pre-commit": "lint-staged",
       "commit-msg": "echo $HUSKY_GIT_PARAMS"
     }
   },
   "lint-staged": {
-    "server/**/*.{js,scss}": [
-      "lerna run lint --scope=server --",
-      "git add"
-    ],
-    "client/**/*.{vue}": [
-      "lerna run lint --scope=client --",
+    "*.{js,scss}": [
+      "npm run lint",
       "git add"
     ]
-  },
-  "release": {
-    "branches": [
-      "master",
-      {
-        "name": "develop",
-        "channel": "rc",
-        "prerelease": "rc"
-      }
-    ],
-    "plugins": [
-      [
-        "@semantic-release/commit-analyzer",
-        {
-          "preset": "conventionalcommits",
-          "parserOpts": {
-            "noteKeywords": [
-              "BREAKING CHANGE",
-              "BREAKING CHANGES"
-            ]
-          }
-        }
-      ],
-      [
-        "@semantic-release/release-notes-generator",
-        {
-          "preset": "conventionalcommits",
-          "parserOpts": {
-            "noteKeywords": [
-              "BREAKING CHANGE",
-              "BREAKING CHANGES",
-              "BREAKING"
-            ]
-          },
-          "writerOpts": {
-            "commitsSort": [
-              "subject",
-              "scope"
-            ]
-          }
-        }
-      ],
-      [
-        "@semantic-release/exec",
-        {
-          "prepareCmd": "echo ${nextRelease.version} > version.txt"
-        }
-      ],
-      [
-        "@semantic-release/gitlab",
-        {}
-      ]
-    ]
-  },
-  "devDependencies": {
-    "@semantic-release/exec": "^5.0.0",
-    "@semantic-release/gitlab": "^6.0.4",
-    "conventional-changelog-conventionalcommits": "^4.5.0",
-    "husky": "^4.3.8",
-    "lerna": "^3.22.1",
-    "lint-staged": "^9.5.0",
-    "semantic-release": "^17.3.8"
   }
 }

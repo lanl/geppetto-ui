@@ -1,26 +1,36 @@
+const path = require("path");
+
 const http = require("http");
-const config = require("config");
+const express = require("express");
+
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const { workingRoot } = require("./helpers/directories");
+const routes = require("./routes");
 const healthcheck = require("./healthcheck");
-const findRemoveSync = require("find-remove");
-const { inboxPath } = require("./helpers/directories");
+const config = require("config");
+
+const app = express();
+
 const port = config.get("PORT");
 
-/* Create express server */
-const app = require("./createExpress").generateExpress();
+app.use(cors());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+
+app.use(express.static(path.join(__dirname, "public")));
+app.use("/", express.static(workingRoot));
+app.use("/", routes);
+
+app.use(function(err, req, res, next) {
+  console.error(err);
+  res.status(500).send("<h1>Server Error</h1>");
+});
+
 const server = http.createServer(app);
 
-/* Setup healthcheck */
+//healthcheck
 healthcheck.setupHealthCheck(server);
 
-/* Remove videos from inbox every 10 minutes that are older than an hour
- after moving thumbnails are created */
-setInterval(() => {
-  findRemoveSync(inboxPath, {
-    age: 3600,
-    files: "*.*"
-  });
-}, 600000);
-
 server.listen(port);
-console.log(`Server running in ${process.env.NODE_ENV} mode`);
 console.log(`💻  Listening on port ${port}`);

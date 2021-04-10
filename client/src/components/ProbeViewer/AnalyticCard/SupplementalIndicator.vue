@@ -2,7 +2,7 @@
   <div>
     <router-link
       :to="{
-        name: 'supplemental',
+        path: 'supplemental',
         query: { probe: props.probeId, analytic: props.analyticId }
       }"
       target="_blank"
